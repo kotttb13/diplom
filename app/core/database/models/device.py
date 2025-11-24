@@ -14,6 +14,7 @@ class Device(Base):
     memory = Column(Float)
     processor = Column(String)
     gpu = Column(Boolean, default=False)
+    last_seen =  Column(DateTime, default=datetime.utcnow)
 
     deployment_record_device = relationship("DeploymentRecord", back_populates="device_deployment_record")
     type_device = relationship("DeviceType", back_populates="device_type")
