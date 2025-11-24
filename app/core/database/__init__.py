@@ -1,6 +1,7 @@
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
+from .seeds import seed_initial_data
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from core.database.base import Base
@@ -67,6 +68,8 @@ def initialize_database(type="postgre"):
     print("Created tables: ") 
     for table_name in Base.metadata.tables.keys():
         print(f"  - {table_name}")
+    session = get_session(engine)
+    seed_initial_data(session)   
     return engine
 
 if __name__ == "__main__":

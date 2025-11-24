@@ -1,70 +1,9 @@
 гит: git.exe add .
-git.exe commit -m "Добавлена БД"
+git.exe commit -m "Добавлены данные в таблицы типы устройств и форматы моделей"
 git.exe push
 план по написаню приложения:
 
-1)22.11 - Создать все dataclass модели
-Написать конвертеры между форматами
-Протестировать создание объектов
-Создать таблицы в SQLite
-Реализовать базовые репозитории
-Написать тесты для CRUD операций
-
-Device:
-id: int (первичный ключ)
-name: str (имя устройства)
-type: str (тип: "Android", "RaspberryPi", etc.)
-ip_address: str (IP адрес для OTA)
-architecture: str (архитектура: ARM64, ARMv7, etc.)
-memory: float (объем памяти в ГБ)
-processor: str (информация о процессоре)
-gpu: bool (наличие GPU)
-connection_type: str (тип подключения: "WiFi", "Ethernet")
-
-NeuralModel:
-id: int (первичный ключ)
-name: str (имя модели)
-original_path: str (путь к исходному файлу модели)
-format: str (формат модели: "TensorFlow", "ONNX", etc.)
-size: float (размер модели в МБ)
-upload_date: datetime (дата загрузки)
-
-OptimizedModel:
-id: int (первичный ключ)
-original_model_id: int (внешний ключ к NeuralModel)
-optimization_params: str (JSON строка с параметрами оптимизации)
-path: str (путь к файлу оптимизированной модели)
-size: float (размер после оптимизации в МБ)
-optimization_date: datetime (дата оптимизации)
-
-OptimizationRecord:
-id: int (первичный ключ)
-original_model_id: int (внешний ключ к NeuralModel)
-optimized_model_id: int (внешний ключ к OptimizedModel)
-optimization_type: str (тип оптимизации: "квантование", "изменение размера" и т.д.)
-parameters: str (JSON с параметрами оптимизации)
-validation_report_id: int (внешний ключ к ValidationReport, опционально)
-status: str (статус: "успех", "ошибка")
-
-DeploymentRecord:
-id: int (первичный ключ)
-optimized_model_id: int (внешний ключ к OptimizedModel)
-device_id: int (внешний ключ к Device)
-deployment_date: datetime (дата развертывания)
-status: str (статус развертывания: "успех", "ошибка")
-log: str (лог развертывания)
-
-ValidationReport:
-id: int (первичный ключ)
-optimized_model_id: int (внешний ключ к OptimizedModel)
-accuracy_before: float (точность до оптимизации)
-accuracy_after: float (точность после оптимизации)
-loss_before: float (потери до оптимизации)
-loss_after: float (потери после оптимизации)
-validation_date: datetime (дата валидации)
-
-
-
+1)
 
 2)
 3)
@@ -92,7 +31,7 @@ validation_date: datetime (дата валидации)
 - составление отчета по валидации
 
 - 
-День 1-2: Классы данных + База данных
+День 1-2: Классы данных + База данных +++
 День 3-4: Сервис устройств + OTA базовые классы  
 День 5: Оптимизация (1 способ) + Валидация
 День 6-7: PyQt5 главное окно + основные формы
