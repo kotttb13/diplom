@@ -1,4 +1,6 @@
-
+гит: git.exe add .
+git.exe commit -m "Добавлена БД"
+git.exe push
 план по написаню приложения:
 
 1)22.11 - Создать все dataclass модели
@@ -17,7 +19,7 @@ architecture: str (архитектура: ARM64, ARMv7, etc.)
 memory: float (объем памяти в ГБ)
 processor: str (информация о процессоре)
 gpu: bool (наличие GPU)
-connection_type: str (тип подключения: "USB", "WiFi", "Ethernet")
+connection_type: str (тип подключения: "WiFi", "Ethernet")
 
 NeuralModel:
 id: int (первичный ключ)
