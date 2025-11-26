@@ -4,7 +4,7 @@ import sys
 import os
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from core.database import initialize_database, get_session
+from core.database.initialization_db import initialize_database, get_session
 from core.database.models.device import Device
 from core.database.models.neural_model import NeuralModel
 from core.database.models.optimized_model import OptimizedModel
@@ -38,7 +38,6 @@ class TestCRUDOperations:
             architecture="x86_64",
             memory=8192,
             processor="Intel i7",
-            gpu=True,
             last_seen = datetime.now()  
         )
         
@@ -49,7 +48,6 @@ class TestCRUDOperations:
         saved_device = self.session.query(Device).filter_by(name="Test Device").first()
         assert saved_device is not None
         assert saved_device.ip_address == "192.168.1.100"
-        assert saved_device.gpu == True
     
     def test_create_neural_model(self):
         """Тест создания нейросетевой модели"""
@@ -83,7 +81,6 @@ class TestCRUDOperations:
             architecture="ARM64",
             memory=4096,
             processor="Cortex-A78",
-            gpu=False,
             last_seen = datetime.now()  
 
         )
@@ -130,7 +127,6 @@ class TestCRUDOperations:
             architecture="x86_64",
             memory=16384,
             processor="Xeon",
-            gpu=True, 
             last_seen = datetime.now()  
 
         )
@@ -188,7 +184,6 @@ class TestCRUDOperations:
             architecture="ARM64",
             memory=2048,
             processor="Cortex-A53",
-            gpu=False,
             last_seen = datetime.now()  
         )
         
@@ -254,7 +249,6 @@ class TestCRUDOperations:
             architecture="x86_64",
             memory=4096,
             processor="Intel i5",
-            gpu=False,
             last_seen = datetime.now()  
         )
         

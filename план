@@ -1,8 +1,22 @@
 гит: git.exe add .
-git.exe commit -m "Добавлены данные в таблицы типы устройств и форматы моделей"
+git.exe commit -m "добавлено получение характеристик андроида, но бд не работает как надо"
 git.exe push
 план по написаню приложения:
 
+для андроид. регистрация устройства:
+pkg update && pkg upgrade
+pkg install openssh
+whoami
+passwd
+sshd
+ifconfig
+
+для расбери:
+sudo raspi-config
+# Выберите: Interface Options → SSH → Enable
+hostname -I
+sudo adduser deployer
+sudo usermod -aG sudo deployer
 1)
 
 2)

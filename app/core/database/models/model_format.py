@@ -4,7 +4,8 @@ from datetime import datetime
 from core.database.base import Base
  
 class ModelFormat(Base):
-    __tablename__ = "model_format" 
+    __tablename__ = "model_format"
+    __table_args__ = {'extend_existing': True} 
     
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
