@@ -98,7 +98,7 @@ class AndroidDeviceManager(BaseDeviceManager):
         
         info = {
             'last_seen': time.strftime('%Y-%m-%d %H:%M:%S'),
-            'type': "mobile",
+            'type': "Mobile",
             "ip_address": self.ip
         }
         
@@ -106,7 +106,7 @@ class AndroidDeviceManager(BaseDeviceManager):
             'architecture': 'uname -m',
             'memory_gb': 'df -h /data | awk \'NR==2{print $4}\' | sed \'s/G//\'',
             'ram_gb': 'awk \'/MemTotal/ {print int($2/1024/1024)}\' /proc/meminfo',
-            'cpu_cores': 'nproc 2>/dev/null || -1',
+            'cpu_core': 'nproc 2>/dev/null || -1',
             }
         
         for key, command in commands.items():

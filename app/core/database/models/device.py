@@ -21,4 +21,4 @@ class Device(Base):
     optimized_model_device = relationship("OptimizedModel", back_populates="device_optimized_model")
 
     def __repr__(self):
-        return f"<Device(id={self.id}, name='{self.name}', type='{self.type}')>"
+        return f"<Device(id={self.id}, ip='{self.ip_address}', type='{self.type}')>"

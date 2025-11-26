@@ -2,7 +2,8 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
-from core.database.models.device import Device
+
+from core.database.models import Device, DeviceType
 from datetime import datetime, timedelta 
 class DeviceRepository:
     def __init__(self, session: Session):
@@ -24,7 +25,14 @@ class DeviceRepository:
             Device.last_seen >= five_min_ago
         ).all()
 
-        
+    def get_device_type_id (self, device_type):
+        device_type_obj = self.session.query(DeviceType).filter(DeviceType.name == device_type).first()
+        if device_type_obj:
+            return device_type_obj.id
+        return -1
+
+
+
     def delete(self, device: Device) -> None:
         self.session.delete(device)
         self.session.commit()

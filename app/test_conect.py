@@ -21,6 +21,7 @@ try:
         print("\n Не удалось подключиться к Android")
     print(success)
     inf = device.get_and_save_device_info()
+    print("программа дошла до конца")
 except Exception as e:
              print(f"error: {e}")
 

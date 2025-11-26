@@ -47,9 +47,9 @@ class UniversalDeviceService:
             info = self.device_manager.get_device_info()
             print(info)
             if info:
-                
-                a = input("stop!")
-                self.registering.add_device()
+
+                self.registering.add_device(ip_address=info["ip_address"], device_type=info["type"], 
+                architecture=info["architecture"], memory_gb=info["memory_gb"], ram_gb=info["ram_gb"], cpu_core=info["cpu_core"], last_seen=info["last_seen"])
                 return {'success': True, 'message': info}
         except Exception as e:
              return {'success': False, 'error': e}
