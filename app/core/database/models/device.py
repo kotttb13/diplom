@@ -1,11 +1,7 @@
 from sqlalchemy import Column, String, DateTime, Integer, ForeignKey, Float, Text, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
-from core.database.base import Base
-
+from ..base import Base
  
 class Device(Base):
     __tablename__= "device"
@@ -15,8 +11,9 @@ class Device(Base):
     type = Column(Integer,ForeignKey("device_type.id"))
     ip_address =  Column(String, nullable=False)
     architecture  = Column(String, nullable=False) 
-    memory = Column(Float)
-    cpu_cores = Column(Integer)
+    memory_gb = Column(Float)
+    ram_gb = Column(Float)
+    cpu_core = Column(Integer)
     last_seen =  Column(DateTime, default=datetime.utcnow)
 
     deployment_record_device = relationship("DeploymentRecord", back_populates="device_deployment_record")

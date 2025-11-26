@@ -1,8 +1,7 @@
 from sqlalchemy import Column, String, DateTime, Integer, ForeignKey, Float, Text, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
-from core.database.base import Base
- 
+from ..base import Base 
 class OptimizedModel(Base):
     __tablename__ = "optimized_model" 
     

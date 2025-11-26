@@ -1,11 +1,8 @@
 
 from typing import List, Optional
 from sqlalchemy.orm import Session
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
 
-from database.models.device import Device
+from core.database.models.device import Device
 from datetime import datetime, timedelta 
 class DeviceRepository:
     def __init__(self, session: Session):

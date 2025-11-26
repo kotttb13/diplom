@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String, DateTime, Integer, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
-from core.database.base import Base
+from ..base import Base
  
 class ModelFormat(Base):
     __tablename__ = "model_format"

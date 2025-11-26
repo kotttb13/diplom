@@ -1,5 +1,5 @@
-from .models.device_type import DeviceType
-from .models.model_format import ModelFormat
+from core.database.models import ModelFormat, DeviceType
+
 
 def seed_device_types(session):
     devices_types = [

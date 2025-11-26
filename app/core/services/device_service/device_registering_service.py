@@ -1,12 +1,9 @@
 from typing import List, Optional, Dict
 from datetime import datetime
 import logging
-import sys
-import os
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from database.models.device import Device
-from repositories.device_repository import DeviceRepository
+from core.database.models.device import Device
+from core.repositories.device_repository import DeviceRepository
 
 class DeviceRegisteringService:
     def __init__(self, device_repository: DeviceRepository):

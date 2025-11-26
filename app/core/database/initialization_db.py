@@ -1,17 +1,12 @@
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
-from .seeds import seed_initial_data
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from core.database.base import Base
-from .models.device import Device
-from .models.neural_model import NeuralModel
-from .models.optimized_model import OptimizedModel
-from .models.optimization_record import OptimizationRecord
-from .models.deployment_record import DeploymentRecord
-from .models.device_type import DeviceType
-from .models.model_format import ModelFormat
+from .seeds import seed_initial_data
+from .base import Base
+from core.database.models import Device, DeviceType,NeuralModel, OptimizedModel, OptimizationRecord, DeploymentRecord, ModelFormat
 username = "user1"
 userpassword = "user1"
 db_url_postgre = f'postgresql://{username}:{userpassword}@localhost:5432/kyrsovaya_db'
