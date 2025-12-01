@@ -1,6 +1,5 @@
 from core.services.device_service.device_service import UniversalDeviceService
-
-from core.repositories.device_repository import DeviceRepository
+from core.repositories import DeviceRepository, ModelRepository
 from core.database.initialization_db import initialize_database, get_session
 
 
@@ -19,8 +18,12 @@ try:
     success = device.connect_device("android", **config)
     if not success:
         print("\n Не удалось подключиться к Android")
-    print(success)
+    print(success) 
     inf = device.get_and_save_device_info()
+
+
+    modelrepo = ModelRepository(session)
+
     print("программа дошла до конца")
 except Exception as e:
              print(f"error: {e}")

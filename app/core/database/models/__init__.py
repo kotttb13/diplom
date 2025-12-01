@@ -5,6 +5,7 @@ from .optimized_model import OptimizedModel
 from .optimization_record import OptimizationRecord
 from .deployment_record import DeploymentRecord
 from .model_format import ModelFormat
+from .model_type import ModelType
 
 __all__ = [
     'Device',
@@ -13,5 +14,6 @@ __all__ = [
     'OptimizedModel',
     'OptimizationRecord',
     'DeploymentRecord',
-    'ModelFormat'
+    'ModelFormat',
+    'ModelType'
 ]

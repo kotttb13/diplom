@@ -19,6 +19,8 @@ class UniversalDeviceService:
             return 'error'
         return managers[device_type]
 
+
+
     def connect_device(self, device_type: str, **connection_params) -> Dict:
         try:
             manager = self.get_manager(device_type)

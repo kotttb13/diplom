@@ -13,8 +13,14 @@ class DeviceRepository:
         self.session.add(device)
         self.session.commit()
     
-    def get_by_id(self, device_id: str) -> Optional[Device]:
+    def get_by_id(self, device_id: int) -> Optional[Device]:
         return self.session.query(Device).filter(Device.id == device_id).first()
+
+    def get_by_ip(self, device_ip: str) -> Optional[Device]:
+        device_type_obj = self.session.query(Device).filter(Device.ip == device_ip).first()
+        if device_type_obj:
+            return device_type_obj.id
+        return -1
     
     def get_all(self) -> List[Device]:
         return self.session.query(Device).all()

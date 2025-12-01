@@ -47,9 +47,12 @@ class DeviceRegisteringService:
     def get_connected_devices(self) -> List[Device]:
         return self.device_repo.get_connected()
 
-    def get_devices_by_id(self, device_id: str) -> List[Device]:
+    def get_devices_by_id(self, device_id: int) -> List[Device]:
         return self.device_repo.get_by_id(device_id)
+
+    def get_devices_by_ip(self, device_ip: str) -> Device:
+        return self.device_repo.get_by_ip(device_ip)
     
-    def get_device_type_id(self, device_type: str) -> Device:
+    def get_device_type_id(self, device_type: int) -> Device:
         return self.device_repo.get_device_type_id(device_type)
 
