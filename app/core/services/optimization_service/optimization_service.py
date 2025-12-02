@@ -9,12 +9,11 @@ class OptimizationService:
     def __init__(self, 
                  device_repository, 
                  model_repository,
-                 optimized_model_repository,
-                 optimization_record_repository):
+                 optimized_model_repository):
         self.device_repo = device_repository
         self.model_repo = model_repository
         self.optimized_model_repo = optimized_model_repository
-        self.optimization_record_repo = optimization_record_repository
+       
         self.logger = logging.getLogger(__name__)
       
     
@@ -45,6 +44,7 @@ class OptimizationService:
                 self.logger.info(f"Оптимизация завершена успешно")
                 optimization_result = self._save_optimization_result(model, device, result)
                 result.update(optimization_result)
+
             else:
                 self.logger.error(f"Ошибка оптимизации: {result.get('error')}")
                 

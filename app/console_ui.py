@@ -1,15 +1,13 @@
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
+import numpy as np
 from core.database.initialization_db import initialize_database, get_session
 from core.repositories.device_repository import DeviceRepository
 from core.repositories.model_repository import ModelRepository
 from core.repositories.optimized_model_repository import OptimizedModelRepository
 from core.repositories.optimization_record_repository import OptimizationRecordRepository
-from core.services.optimization_service.optimization_service import OptimizationService
-from core.services.device_service.device_service import UniversalDeviceService
-
+from core.services import OptimizationService, UniversalDeviceService, ModelValidationService
 class ConsoleUI:
     def __init__(self):
         # Инициализация БД и репозиториев
@@ -24,10 +22,9 @@ class ConsoleUI:
         self.optimization_service = OptimizationService(
             self.device_repo,
             self.model_repo,
-            self.optimized_model_repo,
-            self.optimization_record_repo
+            self.optimized_model_repo
         )
-
+        self.validation_service = ModelValidationService(self.optimization_record_repo)
         self.device_service = UniversalDeviceService(self.device_repo)
     
     def show_main_menu(self):
@@ -120,6 +117,15 @@ class ConsoleUI:
             print(" Неверный ID устройства")
             return
         
+        x_test_data_path = input("введите путь к тестовым данным: ")
+        y_test_data_path = input("введите путь к тестовым меткам: ")
+
+        try:
+            x_test_data = np.load(x_test_data_path)
+            y_test_data = np.load(y_test_data_path)
+        except Exception as e:
+            print(f" Ошибка! тестовые данные не найдены: {e}")
+
         print(f"\n Запуск оптимизации модели ID:{model_id} для устройства ID:{device_id}...")
         
         # Запускаем оптимизацию
@@ -130,12 +136,27 @@ class ConsoleUI:
         
         if result['success']:
             print(" Оптимизация завершена успешно!")
+            original_model_path = self.model_repo.get_path_by_id(model_id)[0]
+            original_model_format = original_model_path.split('.')[-1].lower()
+            optimized_model_format = result['optimized_model_path'].split('.')[-1].lower()
+            success = self.validation_service.validate_model_pair(original_model_path, result['optimized_model_path'], x_test_data, y_test_data, original_model_format, optimized_model_format )
             print(f" Оптимизированная модель: {result['optimized_model_path']}")
             print(f" Размер: {result.get('model_size_mb', 0):.2f} MB")
             print(f" Стратегия: {result.get('strategy', {})}")
-            
+            if success["success"]:
+                print("="*80)
+                print("Отчет проверки качества модели")
+                print(f" Точность до оптимизации: {success["accuracy_before"]}")
+                print(f" Точность после оптимизации: {success["accuracy_after"]}")
+                print(f" Потери до оптимизации: {success["loss_before"]}")
+                print(f" Потери после оптимизации: {success["loss_after"]}")
+                self.validation_service._save_optimization_result(model_id, result['optimized_model_id'], success)
+            else:
+                print(f" Не получилось проверить качество оптимизироваанной модели: {success["erorr"]}")
+
             if 'optimized_model_id' in result:
                 print(f" ID оптимизированной модели: {result['optimized_model_id']}")
+            print("="*80)
         else:
             print(f" Ошибка оптимизации: {result.get('error', 'Неизвестная ошибка')}")
     
@@ -144,18 +165,18 @@ class ConsoleUI:
         print("\n ИСТОРИЯ ОПТИМИЗАЦИЙ:")
         print("-" * 80)
         
-        # records = self.optimization_record_repo.get_recent_records(limit=10)
+        records = self.optimization_record_repo.get_recent_records(limit=10)
         
-        # if not records:
-        #     print("❌ Записи оптимизации не найдены")
-        #     return
+        if not records:
+            print("❌ Записи оптимизации не найдены")
+            return
         
-        # for record in records:
-        #     print(f"ID: {record.id} | Модель ID: {record.original_model_id} | "
-        #           f"Статус: {record.status} | "
-        #           f"Точность до: {record.accuracy_before or 'N/A'} | "
-        #           f"Точность после: {record.accuracy_after or 'N/A'}")
-        # print("-" * 80)
+        for record in records:
+            print(f"ID: {record.id} | Модель ID: {record.original_model_id} | "
+                  f"Статус: {record.status} | "
+                  f"Точность до: {record.accuracy_before or 'N/A'} | "
+                  f"Точность после: {record.accuracy_after or 'N/A'}")
+        print("-" * 80)
     
     def add_model(self):
         """Добавить новую модель"""
@@ -203,6 +224,8 @@ class ConsoleUI:
             print(f" Устройство {ip} успешно добавлено")
         except Exception as e:
             print(f" Ошибка добавления устройства: {e}")
+
+
 
 def main():
     """Точка входа в приложение"""

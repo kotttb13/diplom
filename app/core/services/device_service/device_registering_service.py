@@ -28,8 +28,8 @@ class DeviceRegisteringService:
         )
         
         self.device_repo.save(device)
-        print(f"Устройство добавлено: {name} ({ip_address})")
-        self.logger.info(f"Устройство добавлено: {name} ({ip_address})")
+        print(f"Устройство добавлено: {ip_address}")
+        self.logger.info(f"Устройство добавлено:{ip_address}")
         return device
 
     def connect_device(self, device_id: str) -> bool:

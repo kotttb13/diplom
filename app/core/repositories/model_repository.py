@@ -64,6 +64,24 @@ class ModelRepository:
         self.save(model)
         return model
     
+    def get_format_by_id(self, model_id):
+        result = (self.session.query( 
+                    ModelFormat.name.label('format_name')  
+                 )
+                 .select_from(NeuralModel)
+                 .join(ModelFormat, NeuralModel.format_id == ModelFormat.id)      
+                 .filter(NeuralModel.id == model_id)
+                 .first())
+        
+        if result:
+            return {
+                'model_format': result.format_name.lower()
+            }
+        return None
+    
+    def get_path_by_id(self, model_id):
+        return self.session.query(NeuralModel.original_path).filter(NeuralModel.id == model_id).first()
+    
     def get_all(self) -> List[NeuralModel]:
         return self.session.query(NeuralModel).all()
     # def get_by_id_with_details(self, model_id: int) -> Optional[dict]:

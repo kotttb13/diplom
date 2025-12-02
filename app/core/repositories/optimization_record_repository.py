@@ -17,3 +17,5 @@ class OptimizationRecordRepository:
         return (self.session.query(OptimizationRecord)
                 .filter(OptimizationRecord.optimized_model_id == optimized_model_id)
                 .all())
+    def get_recent_records(self, limit=10) -> List[OptimizationRecord]:
+        return self.session.query(OptimizationRecord).order_by(OptimizationRecord.id.desc()).limit(limit).all()
