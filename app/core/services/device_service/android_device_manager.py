@@ -5,7 +5,8 @@ import json
 from typing import Dict, Optional
 import logging
 import os
-from scp import SCPClient
+from scp import SCPClient, SCPException
+import subprocess
 from .base_device_manager import BaseDeviceManager
 
 class AndroidDeviceManager(BaseDeviceManager):
@@ -123,56 +124,81 @@ class AndroidDeviceManager(BaseDeviceManager):
         return info
     
     def deploy_file(self, local_path: str, remote_path: str = "~/") -> Dict:
-        self.logger.debug(f"Загрузка файлов на устройство") 
         if not self.connection:
-            self.logger.error(f"Не удалось выполнить команду, поскольку нет подключения к устройству!")
-            return {'error': 'Нет подключения', 'success': False}
+            return {'success': False, 'error': 'Нет SSH подключения'}
         
         try:
-            if not os.path.exists(local_path):
-                self.logger.error(f"Не удалось найти путь к файлу для развертывания!")
-                return {'error': f'Локальный файл {local_path} не существует'}
+            # 1. УБЕРИТЕ тильду ~ из remote_path для SCP
+            # SCP не понимает ~, нужно полный путь
+            remote_path_fixed = remote_path
+            if remote_path.startswith("~/"):
+                # Получаем домашнюю директорию
+                result = self.execute_command("pwd")
+                if result.get('success'):
+                    home_dir = result.get('output', '').strip()
+                    remote_path_fixed = remote_path.replace("~/", f"{home_dir}/")
+                else:
+                    # Fallback
+                    remote_path_fixed = remote_path.replace("~/", "/data/data/com.termux/files/home/")
             
-            filename = os.path.basename(local_path)
-            full_remote_path = f"{remote_path.rstrip('/')}/{filename}"
+            # 2. Создаем директорию если нужно
+            remote_dir = os.path.dirname(remote_path_fixed)
+            if remote_dir:
+                mkdir_cmd = f'mkdir -p "{remote_dir}"'
+                self.execute_command(mkdir_cmd)
             
-            
+            # 3. Загружаем файл
             with SCPClient(self.connection.get_transport()) as scp:
-                scp.put(local_path, full_remote_path)
+                scp.put(local_path, remote_path_fixed)
             
-
-            result = self.execute_command(f"ls -la {full_remote_path}")
-            if result['success']:
-                self.logger.info(f"Файл успешно загружен на устройство!")
-                file_info = result['output'].split()
+            # 4. Проверяем
+            check_cmd = f'ls -la "{remote_path_fixed}"'
+            result = self.execute_command(check_cmd)
+            
+            if 'No such file' not in result.get('output', ''):
                 return {
                     'success': True,
-                    'message': 'Файл успешно загружен',
-                    'remote_path': full_remote_path,
-                    'file_size': file_info[4] if len(file_info) > 4 else 'unknown',
-                    'permissions': file_info[0] if len(file_info) > 0 else 'unknown'
+                    'message': f'Файл загружен',
+                    'remote_path': remote_path,  # Возвращаем оригинальный путь
+                    'actual_path': remote_path_fixed  # И фактический путь
                 }
             else:
-                self.logger.error('Не удалось подтвердить загрузку файла')
-                return {'error': 'Не удалось подтвердить загрузку файла'}
+                return {
+                    'success': False,
+                    'error': f'Файл не загружен: {remote_path_fixed}'
+                }
                 
-        except ImportError:
-            self.logger.error("Ошибка! Модуль scp не установлен")
-            return {'error': 'Модуль scp не установлен. Установите: pip install scp'}
         except Exception as e:
-            self.logger.error(f"Ошибка загрузки: {e}")
-            return {'error': f'Ошибка загрузки: {e}', 'success': False}
-    
-    def disconnect(self):
-        try:
-            self.logger.debug(f"Закрытие соединения с устройством")
-            if self.connection:
-                self.connection.close()
-                self.connection = None
-            self.logger.info(f"Соединение с усройством закрыто")
-            return True
-        except Exception as e:
-            return False
-    
+            return {'success': False, 'error': f'SCP ошибка: {str(e)}'}
+        
 
 
+    def create_decrypt_command(self, encrypted_path: str, output_path: str,
+                          checksum_path: str, device_id: str, secret: str) -> str:
+    # Самая простая команда
+        cmd = f'''cd ~ && python3 -c "
+import base64, hashlib, os
+from cryptography.fernet import Fernet
+
+    # Параметры
+enc = '{encrypted_path}'
+out = '{output_path}'
+dev_id = '{device_id}'
+sec = '{secret}'
+
+    # Генерация ключа
+key = base64.urlsafe_b64encode(
+        hashlib.pbkdf2_hmac('sha256', sec.encode(), dev_id.encode(), 100000, 32)
+)
+
+    # Дешифровка
+with open(enc, 'rb') as f:
+    data = Fernet(key).decrypt(f.read())
+
+with open(out, 'wb') as f:
+    f.write(data)
+
+print('done')
+    "
+    '''
+        return cmd

@@ -1,6 +1,7 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from core.database.models import OptimizedModel
+from sqlalchemy import desc, and_
 
 class OptimizedModelRepository:
     def __init__(self, session: Session):
@@ -21,3 +22,9 @@ class OptimizedModelRepository:
     def delete(self, optimized_model: OptimizedModel) -> None:
         self.session.delete(optimized_model)
         self.session.commit()
+
+
+    def get_all(self) -> List[OptimizedModel]:
+        return self.session.query(OptimizedModel).order_by(
+            desc(OptimizedModel.id)
+        ).all()

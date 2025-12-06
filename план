@@ -1,5 +1,5 @@
 гит: git.exe add .
-git.exe commit -m "вроде работает валидация"
+git.exe commit -m "вроде норм развертывание"
 git.exe push
 план по написаню приложения:
 

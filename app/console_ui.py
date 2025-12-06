@@ -5,6 +5,7 @@ import numpy as np
 from core.database.initialization_db import initialize_database, get_session
 from core.repositories.device_repository import DeviceRepository
 from core.repositories.model_repository import ModelRepository
+from core.repositories.deployment_repository import DeploymentRepository
 from core.repositories.optimized_model_repository import OptimizedModelRepository
 from core.repositories.optimization_record_repository import OptimizationRecordRepository
 from core.services import OptimizationService, UniversalDeviceService, ModelValidationService
@@ -18,7 +19,8 @@ class ConsoleUI:
         self.model_repo = ModelRepository(self.session)
         self.optimized_model_repo = OptimizedModelRepository(self.session)
         self.optimization_record_repo = OptimizationRecordRepository(self.session)
-        
+        self.deployment_repo = DeploymentRepository(self.session)
+
         self.optimization_service = OptimizationService(
             self.device_repo,
             self.model_repo,
@@ -39,6 +41,8 @@ class ConsoleUI:
             print("4. Показать историю оптимизаций")
             print("5. Добавить модель")
             print("6. Добавить устройство")
+            print("7. Развернуть OTA обновление")  # НОВАЯ ОПЦИЯ
+            print("8. Показать историю развертываний")  
             print("0. Выход")
             print("="*50)
             
@@ -56,6 +60,10 @@ class ConsoleUI:
                 self.add_model()
             elif choice == "6":
                 self.add_device()
+            elif choice == "7":  # НОВОЕ
+                self.deploy_ota_update()
+            elif choice == "8":  # НОВОЕ
+                self.show_deployment_history()
             elif choice == "0":
                 print("Выход из программы...")
                 self.session.close()
@@ -224,6 +232,210 @@ class ConsoleUI:
             print(f" Устройство {ip} успешно добавлено")
         except Exception as e:
             print(f" Ошибка добавления устройства: {e}")
+
+
+    def deploy_ota_update(self):
+        """Развертывание OTA обновления на устройство"""
+        print("\n" + "="*50)
+        print("РАЗВЕРТЫВАНИЕ OTA ОБНОВЛЕНИЯ")
+        print("="*50)
+        
+        # 1. Показываем оптимизированные модели
+        print("\n1. Выберите оптимизированную модель:")
+        self.show_optimized_models()
+        
+        try:
+            model_id = int(input("\nВведите ID оптимизированной модели: ").strip())
+        except ValueError:
+            print(" Неверный ID модели")
+            return
+        
+        # Получаем модель
+        optimized_model = self.optimized_model_repo.get_by_id(model_id)
+        if not optimized_model:
+            print(" Оптимизированная модель не найдена")
+            return
+        
+        # 2. Показываем устройства
+        print("\n2. Выберите устройство:")
+        self.show_devices()
+        
+        try:
+            device_id = int(input("\nВведите ID устройства: ").strip())
+        except ValueError:
+            print(" Неверный ID устройства")
+            return
+        
+        # Проверяем устройство
+        device = self.device_repo.get_by_id(device_id)
+        if not device:
+            print(" Устройство не найдено")
+            return
+        
+        # 3. Секрет для шифрования
+        print("\n3. Настройки шифрования:")
+        secret = input("Введите секретную фразу для шифрования (или Enter для автоматической): ").strip()
+        if not secret:
+            secret = None
+        
+        # 4. Подтверждение
+        print("\n" + "="*50)
+        print("ПОДТВЕРЖДЕНИЕ РАЗВЕРТЫВАНИЯ:")
+        print(f"Модель: {optimized_model.path}")
+        print(f"Устройство: {device.ip_address} (ID: {device.id})")
+        print(f"Тип: {device.type}")
+        print("="*50)
+        
+        confirm = input("\nПодтвердить развертывание? (y/N): ").strip().lower()
+        if confirm != 'y':
+            print(" Развертывание отменено")
+            return
+        
+        # 5. Создаем запись о развертывании
+        deployment = self.deployment_repo.create_deployment(
+            optimized_model_id=model_id,
+            device_id=device_id,
+            status="starting"
+        )
+        
+    
+       
+        # 6. Подключаемся к устройству (если нужно)
+        print("🔌 Проверка подключения к устройству...")
+        
+        # Здесь нужно получить параметры подключения для устройства
+        # Предполагаем, что они сохранены где-то или запрашиваем
+        print("Введите параметры подключения к устройству:")
+        host = input(f"IP адрес [{device.ip_address}]: ").strip() or device.ip_address
+        username = input("Имя пользователя: ").strip()
+        password = input("Пароль: ").strip()
+        port = input("Порт [8022]: ").strip() or "8022"
+        
+        connection_params = {
+            'host': host,
+            'username': username,
+            'password': password,
+            'port': int(port)
+        }
+        
+        # Подключаемся
+        connect_result = self.device_service.connect_device(
+            device_type="android",  # или получаем из device.type
+            **connection_params
+        )
+        
+        if not connect_result.get('success'):
+            self.deployment_repo.update_status(deployment.id, "connection_failed")
+            print(f"❌ Ошибка подключения: {connect_result.get('error')}")
+            return
+        
+        print("✅ Успешное подключение к устройству")
+        
+        # 7. Запускаем развертывание
+        print("🚀 Запуск развертывания OTA...")
+        self.deployment_repo.update_status(deployment.id, "deploying")
+        
+        result = self.device_service.deploy_ota_update(
+            model_path=optimized_model.path,
+            model_id=model_id,
+            device_id=device_id,
+            secret=secret,
+            remote_dir="~/ota_updates/"
+        )
+        
+        # 8. Обновляем статус развертывания
+        if result.get('success'):
+            self.deployment_repo.update_status(deployment.id, "success")
+            print("\n" + "="*50)
+            print("✅ OTA ОБНОВЛЕНИЕ УСПЕШНО РАЗВЕРНУТО!")
+            print("="*50)
+            print(f"ID развертывания: {deployment.id}")
+            print(f"Файл на устройстве: {result.get('output_file')}")
+            print(f"Контрольная сумма: {result.get('checksum')[:16]}...")
+            print(f"Размер файла: {result.get('original_size')} байт")
+            
+            # Сохраняем дополнительную информацию
+            print("\n📝 Для проверки на устройстве выполните:")
+            print(f"  ls -la {result.get('output_file')}")
+            print(f"  file {result.get('output_file')}")
+            
+        else:
+            self.deployment_repo.update_status(deployment.id, "failed")
+            print("\n❌ ОШИБКА РАЗВЕРТЫВАНИЯ OTA")
+            print(f"Ошибка: {result.get('error')}")
+            
+            # Показываем дополнительные детали если есть
+            if 'command_output' in result:
+                print(f"Вывод команды: {result.get('command_output')}")
+        
+        print("="*50)
+    
+
+    def show_optimized_models(self):
+            """Показать оптимизированные модели"""
+            print("\n СПИСОК ОПТИМИЗИРОВАННЫХ МОДЕЛЕЙ:")
+            print("-" * 80)
+            models = self.optimized_model_repo.get_all()
+            
+            if not models:
+                print(" Оптимизированные модели не найдены")
+                return
+            
+            for model in models:
+                # Получаем информацию об оригинальной модели
+                original_model = self.model_repo.get_by_id(model.original_model_id)
+                original_name = original_model.name if original_model else f"ID:{model.original_model_id}"
+                
+                print(f"ID: {model.id} | Оригинал: {original_name} | "
+                    f"Путь: {model.path} | "
+                    f"Размер: {model.size:.2f} MB | ")
+            print("-" * 80)
+
+
+    def show_deployment_history(self):
+        """Показать историю развертываний"""
+        print("\n ИСТОРИЯ РАЗВЕРТЫВАНИЙ OTA:")
+        print("-" * 100)
+        
+        deployments = self.deployment_repo.get_all()
+        
+        if not deployments:
+            print(" Записи развертываний не найдены")
+            return
+        
+        print(f"{'ID':<5} {'Модель':<15} {'Устройство':<15} {'Статус':<15} {'Дата':<20}")
+        print("-" * 100)
+        
+        for dep in deployments:
+            # Получаем информацию о модели
+            optimized_model = self.optimized_model_repo.get_by_id(dep.optimized_model_id)
+            model_info = f"Model {dep.optimized_model_id}"
+            if optimized_model:
+                # Получаем оригинальное имя
+                original_model = self.model_repo.get_by_id(optimized_model.original_model_id)
+                if original_model:
+                    model_info = original_model.name[:15]
+            
+            # Получаем информацию об устройстве
+            device = self.device_repo.get_by_id(dep.device_id)
+            device_info = f"Device {dep.device_id}"
+            if device:
+                device_info = device.ip_address[:15]
+            
+            # Иконка статуса
+            status_icon = "✅" if dep.status == "success" else "❌" if "fail" in dep.status else "🔄"
+            
+            print(f"{dep.id:<5} {model_info:<15} {device_info:<15} "
+                  f"{status_icon} {dep.status:<12} {dep.deployment_date.strftime('%Y-%m-%d %H:%M:%S'):<20}")
+        
+        print("-" * 100)
+        
+
+
+
+
+
+
 
 
 
