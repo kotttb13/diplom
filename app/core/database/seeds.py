@@ -3,7 +3,7 @@ from core.database.models import ModelFormat, DeviceType, ModelType
 
 def seed_device_types(session):
     devices_types = [
-            DeviceType(name = "Mobile"),
+            DeviceType(name = "Android"),
             DeviceType(name = "RaspberryPI")
         ]
 
@@ -33,8 +33,7 @@ def seed_model_formats(session):
 
 def seed_model_types(session):
     model_types = [
-            ModelType(name="cv"),
-            ModelType(name="nlp")
+            ModelType(name="cv")
         ]
     existing_types = session.query(ModelType).count()
     if existing_types==0:

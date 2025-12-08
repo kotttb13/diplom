@@ -1,6 +1,7 @@
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from core.database.models import NeuralModel, ModelFormat, ModelType
+from datetime import datetime
 
 class ModelRepository:
     def __init__(self, session: Session):
@@ -28,15 +29,22 @@ class ModelRepository:
         return None
     
     def get_by_id(self, model_id: int) -> Optional[NeuralModel]:
-        return self.session.query(NeuralModel).filter(NeuralModel.id == model_id).first()
+         return (self.session.query(NeuralModel)
+                .options(
+                    joinedload(NeuralModel.type_neural_model),    
+                    joinedload(NeuralModel.format_neural_model)
+                )
+                .filter(NeuralModel.id == model_id)
+                .first())
+    
 
     def get_model_types(self) -> List[str]:
         result = self.session.query(ModelType.name).all()
-        return result
+        return [row[0] for row in result] if result else []
     
     def get_model_formats(self) -> List[str]:
         result = self.session.query(ModelFormat.name).all()
-        return result
+        return [row[0] for row in result] if result else []
     
     def create_model(self, name: str, original_path: str, model_type_name: str, 
                    format_name: str, size: float = None) -> NeuralModel:
@@ -83,34 +91,55 @@ class ModelRepository:
         return self.session.query(NeuralModel.original_path).filter(NeuralModel.id == model_id).first()
     
     def get_all(self) -> List[NeuralModel]:
-        return self.session.query(NeuralModel).all()
-    # def get_by_id_with_details(self, model_id: int) -> Optional[dict]:
-    #     """Получает полную информацию о модели"""
-    #     result = (self.session.query(
-    #                 NeuralModel,
-    #                 ModelType.name.label('model_type'),
-    #                 ModelFormat.name.label('format')
-    #              )
-    #              .join(ModelType, NeuralModel.model_type_id == ModelType.id)
-    #              .join(ModelFormat, NeuralModel.format_id == ModelFormat.id)
-    #              .filter(NeuralModel.id == model_id)
-    #              .first())
-        
-    #     if result:
-    #         neural_model, model_type, format_name = result
-    #         return {
-    #             'id': neural_model.id,
-    #             'name': neural_model.name,
-    #             'original_path': neural_model.original_path,
-    #             'model_type': model_type,
-    #             'format': format_name,
-    #             'size': neural_model.size
-    #         }
-    #     return None
+        return (self.session.query(NeuralModel)
+                .options(
+                    joinedload(NeuralModel.type_neural_model),    
+                    joinedload(NeuralModel.format_neural_model)
+                )
+                .order_by(NeuralModel.id.desc())
+                .all())
     
-    # def get_models_by_type_name(self, type_name: str) -> List[NeuralModel]:
-    #     """Получить модели по названию типа"""
-    #     return (self.session.query(NeuralModel)
-    #             .join(ModelType, NeuralModel.model_type_id == ModelType.id)
-    #             .filter(ModelType.name == type_name)
-    #             .all())
+    def delete(self, model_id: int) -> bool:
+        """Удалить модель по ID"""
+        try:
+            model = self.get_by_id(model_id)
+            if model:
+                self.session.delete(model)
+                self.session.commit()
+                return True
+            return False
+        except Exception as e:
+            self.session.rollback()
+            raise e
+        
+    def update(self, model_id: int, **kwargs) -> Optional[NeuralModel]:
+   
+        try:
+            model = self.get_by_id(model_id)
+            if not model:
+                return None
+            
+            for key, value in kwargs.items():
+                if hasattr(model, key):
+                    setattr(model, key, value)
+            
+            if 'type_name' in kwargs:
+                model_type = self.session.query(ModelType).filter(
+                    ModelType.name == kwargs['type_name']
+                ).first()
+                if model_type:
+                    model.type_id = model_type.id
+            
+            if 'format_name' in kwargs:
+                model_format = self.session.query(ModelFormat).filter(
+                    ModelFormat.name == kwargs['format_name']
+                ).first()
+                if model_format:
+                    model.format_id = model_format.id
+            
+            model.updated_at = datetime.now()
+            self.session.commit()
+            return model
+        except Exception as e:
+            self.session.rollback()
+            raise e 

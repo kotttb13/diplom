@@ -19,3 +19,10 @@ class OptimizationRecordRepository:
                 .all())
     def get_recent_records(self, limit=10) -> List[OptimizationRecord]:
         return self.session.query(OptimizationRecord).order_by(OptimizationRecord.id.desc()).limit(limit).all()
+    
+    def get_all(self):
+        return self.session.query(OptimizationRecord).all()
+    
+    def delete(self, record: OptimizationRecord) -> None:
+        self.session.delete(record)
+        self.session.commit()

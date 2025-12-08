@@ -91,6 +91,25 @@ class AndroidDeviceManager(BaseDeviceManager):
             self.logger.error(f"Возникла ошибка при выполнении команды: {e}")
             return {'error': f'Ошибка выполнения: {e}', 'success': False}
     
+    
+    def get_free_memory(self)->Dict:
+        self.logger.debug(f"Получение информации о свободной памяти Android устройства")
+        info = dict()
+        if not self.connection:
+            self.logger.error(f"Не удалось выполнить команду, поскольку нет подключения к устройству!")
+            return {'error': 'Нет подключения', 'success': False}
+        command = "df -h /data | awk \'NR==2{print $4}\' | sed \'s/G//\'"
+        result = self.execute_command(command)
+        if result['success'] and result['output']:
+            print("Значение свободной памяти получено!")
+            self.logger.info(f"Значение свободной памяти получено!")
+            info["memory_gb"] = result['output']
+        else:
+            print("Значение свободной памяти не удалось получить!")
+            self.logger.info(f"Значение свободной памяти не удалось получить!")
+            info =  {'error': 'Unknown error', 'success': False}
+        return info
+
     def get_device_info(self) -> Dict:
         self.logger.debug(f"Получение подробной информации об Android устройстве")
         if not self.connection:
@@ -99,7 +118,7 @@ class AndroidDeviceManager(BaseDeviceManager):
         
         info = {
             'last_seen': time.strftime('%Y-%m-%d %H:%M:%S'),
-            'type': "Mobile",
+            'type_device': "android",
             "ip_address": self.ip
         }
         

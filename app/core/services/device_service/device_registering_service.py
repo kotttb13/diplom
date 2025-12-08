@@ -18,7 +18,7 @@ class DeviceRegisteringService:
         device = Device(
         
             ip_address=ip_address,
-            type=device_type_id,
+            type_id=device_type_id,
             architecture=architecture,
             memory_gb = memory_gb,
             ram_gb = ram_gb,
@@ -51,7 +51,7 @@ class DeviceRegisteringService:
         return self.device_repo.get_by_id(device_id)
 
     def get_devices_by_ip(self, device_ip: str) -> Device:
-        return self.device_repo.get_by_ip(device_ip)
+        return self.device_repo.get_id_by_ip(device_ip)
     
     def get_device_type_id(self, device_type: int) -> Device:
         return self.device_repo.get_device_type_id(device_type)

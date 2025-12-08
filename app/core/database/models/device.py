@@ -8,7 +8,7 @@ class Device(Base):
     __table_args__ = {'extend_existing': True}
     
     id = Column(Integer,primary_key=True)
-    type = Column(Integer,ForeignKey("device_type.id"))
+    type_id = Column(Integer,ForeignKey("device_type.id"))
     ip_address =  Column(String, nullable=False)
     architecture  = Column(String, nullable=False) 
     memory_gb = Column(Float)
@@ -21,4 +21,4 @@ class Device(Base):
     optimized_model_device = relationship("OptimizedModel", back_populates="device_optimized_model")
 
     def __repr__(self):
-        return f"<Device(id={self.id}, ip='{self.ip_address}', type='{self.type}')>"
+        return f"<Device(id={self.id}, ip='{self.ip_address}', type='{self.type_id}')>"
