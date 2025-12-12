@@ -7,8 +7,8 @@ from sqlalchemy.orm import sessionmaker
 from .seeds import seed_initial_data
 from .base import Base
 from core.database.models import Device, DeviceType,NeuralModel, OptimizedModel, OptimizationRecord, DeploymentRecord, ModelFormat
-username = "user1"
-userpassword = "user1"
+username = "postgres"
+userpassword = "1111"
 db_url_postgre = f'postgresql://{username}:{userpassword}@localhost:5432/kyrsovaya_db'
 db_url_sqlLite='sqlite:///kyrsovaya.db'
 

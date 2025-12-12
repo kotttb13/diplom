@@ -1488,7 +1488,7 @@ class MainWindow(QMainWindow):
             self.device_progress_bar.setVisible(False)
            
     
-    def show_optimization_dialog(self):\
+    def show_optimization_dialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("ОПТИМИЗАЦИЯ МОДЕЛИ")
         dialog.setModal(True)
