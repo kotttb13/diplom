@@ -2,16 +2,14 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QPalette, QFont
 
 class WarframeStyles:
-    """Стили в духе Warframe"""
     
-    # Цветовая палитра Warframe
     COLORS = {
         'background': QColor(10, 14, 20),
         'background_secondary': QColor(18, 22, 28),
         'background_tertiary': QColor(26, 30, 36),
-        'accent_primary': QColor(0, 183, 235),     # Синий Warframe
-        'accent_secondary': QColor(235, 75, 75),   # Красный
-        'accent_success': QColor(46, 204, 113),    # Зеленый
+        'accent_primary': QColor(0, 183, 235),     
+        'accent_secondary': QColor(235, 75, 75),   
+        'accent_success': QColor(46, 204, 113),  
         'text_primary': QColor(240, 240, 240),
         'text_secondary': QColor(180, 180, 180),
         'text_disabled': QColor(100, 100, 100),
@@ -23,7 +21,6 @@ class WarframeStyles:
     
     @staticmethod
     def get_stylesheet():
-        """Получить полный CSS стиль"""
         colors = WarframeStyles.COLORS
         
         return f"""
