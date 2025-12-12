@@ -147,30 +147,23 @@ class AndroidDeviceManager(BaseDeviceManager):
             return {'success': False, 'error': 'Нет SSH подключения'}
         
         try:
-            # 1. УБЕРИТЕ тильду ~ из remote_path для SCP
-            # SCP не понимает ~, нужно полный путь
             remote_path_fixed = remote_path
             if remote_path.startswith("~/"):
-                # Получаем домашнюю директорию
                 result = self.execute_command("pwd")
                 if result.get('success'):
                     home_dir = result.get('output', '').strip()
                     remote_path_fixed = remote_path.replace("~/", f"{home_dir}/")
                 else:
-                    # Fallback
                     remote_path_fixed = remote_path.replace("~/", "/data/data/com.termux/files/home/")
             
-            # 2. Создаем директорию если нужно
             remote_dir = os.path.dirname(remote_path_fixed)
             if remote_dir:
                 mkdir_cmd = f'mkdir -p "{remote_dir}"'
                 self.execute_command(mkdir_cmd)
             
-            # 3. Загружаем файл
             with SCPClient(self.connection.get_transport()) as scp:
                 scp.put(local_path, remote_path_fixed)
             
-            # 4. Проверяем
             check_cmd = f'ls -la "{remote_path_fixed}"'
             result = self.execute_command(check_cmd)
             
@@ -194,23 +187,23 @@ class AndroidDeviceManager(BaseDeviceManager):
 
     def create_decrypt_command(self, encrypted_path: str, output_path: str,
                           checksum_path: str, device_id: str, secret: str) -> str:
-    # Самая простая команда
+
         cmd = f'''cd ~ && python3 -c "
 import base64, hashlib, os
 from cryptography.fernet import Fernet
 
-    # Параметры
+
 enc = '{encrypted_path}'
 out = '{output_path}'
 dev_id = '{device_id}'
 sec = '{secret}'
 
-    # Генерация ключа
+
 key = base64.urlsafe_b64encode(
         hashlib.pbkdf2_hmac('sha256', sec.encode(), dev_id.encode(), 100000, 32)
 )
 
-    # Дешифровка
+
 with open(enc, 'rb') as f:
     data = Fernet(key).decrypt(f.read())
 
