@@ -77,18 +77,7 @@ class OptimizationService:
                 optimization_params=str(optimization_result.get('strategy', {}))
             )
             self.optimized_model_repo.save(optimized_model)
-            #нужно сделать валидацию!
-            # optimization_record = OptimizationRecord(
-            #     optimized_model_id=optimized_model.id,
-            #     original_model_id=original_model.id,
-            #     accuracy_before=optimization_result.get('quality_metrics', {}).get('original_accuracy', 0),
-            #     accuracy_after=optimization_result.get('quality_metrics', {}).get('optimized_accuracy', 0),
-            #     status='completed'
-            # )
-            # self.optimization_record_repo.save(optimization_record)
             
-            # self.logger.info(f"Созданы записи: OptimizedModel ID:{optimized_model.id}, "
-            #                f"OptimizationRecord ID:{optimization_record.id}")
             
             return {
                 'optimized_model_id': optimized_model.id
