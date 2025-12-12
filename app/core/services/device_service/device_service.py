@@ -105,7 +105,6 @@ class UniversalDeviceService:
                     home_dir = result.get('output', '').strip()
                     remote_dir = remote_dir.replace("~/", f"{home_dir}/")
                 else:
-                    # Fallback для Termux
                     remote_dir = remote_dir.replace("~/", "/data/data/com.termux/files/home/")
 
             if remote_dir:
@@ -214,7 +213,5 @@ class UniversalDeviceService:
         return encrypted_data, checksum
     
     def install_cryptography_command(self) -> str:
-        """
-        Возвращает команду для установки cryptography на устройстве
-        """
+        
         return "pkg install python-cryptography -y"
