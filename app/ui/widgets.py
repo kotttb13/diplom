@@ -10,22 +10,19 @@ from PyQt5.QtGui import QFont, QColor, QPainter, QPen
 from .styles import WarframeStyles
 
 class WarframeButton(QPushButton):
-    """Кнопка в стиле Warframe с анимацией"""
     
     def __init__(self, text="", parent=None):
         super().__init__(text, parent)
         self.setCursor(Qt.PointingHandCursor)
         
-        # Анимация наведения
         self.hover_timer = QTimer()
         self.hover_timer.setSingleShot(True)
         self.hover_timer.timeout.connect(self._reset_hover)
         
     def _reset_hover(self):
-        pass  # Можно добавить анимацию
+        pass  
 
 class StatusLabel(QLabel):
-    """Метка статуса с иконкой"""
     
     STATUS_COLORS = {
         'success': WarframeStyles.COLORS['accent_success'],
@@ -41,17 +38,14 @@ class StatusLabel(QLabel):
         self.update_style()
     
     def set_status(self, status):
-        """Установить статус"""
         self.status = status
         self.update_style()
     
     def update_style(self):
-        """Обновить стиль в зависимости от статуса"""
         color = self.STATUS_COLORS.get(self.status, WarframeStyles.COLORS['text_primary'])
         self.setStyleSheet(f"color: {color.name()}; font-weight: bold;")
 
 class ConsoleOutputWidget(QTextEdit):
-    """Виджет вывода консоли в стиле Warframe"""
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -69,7 +63,6 @@ class ConsoleOutputWidget(QTextEdit):
         """)
     
     def add_message(self, message, msg_type="info"):
-        """Добавить сообщение"""
         colors = {
             'info': '#00B7EB',
             'success': '#2ECC71',
@@ -87,7 +80,6 @@ class ConsoleOutputWidget(QTextEdit):
         self.verticalScrollBar().setValue(self.verticalScrollBar().maximum())
 
 class DeviceSelector(QWidget):
-    """Виджет выбора устройства"""
     
     device_selected = pyqtSignal(int)  # Сигнал с ID устройства
     
@@ -98,7 +90,6 @@ class DeviceSelector(QWidget):
         self.load_devices()
     
     def init_ui(self):
-        """Инициализация UI"""
         layout = QVBoxLayout()
         
         # Заголовок
@@ -152,7 +143,6 @@ class DeviceSelector(QWidget):
             )
     
     def on_device_selected(self, index):
-        """Обработчик выбора устройства"""
         if index >= 0:
             device_id = self.device_combo.currentData()
             device = self.device_repo.get_by_id(device_id)
@@ -169,7 +159,6 @@ class DeviceSelector(QWidget):
                 self.device_selected.emit(device_id)
 
 class ProgressDialog(QFrame):
-    """Диалог прогресса в стиле Warframe"""
     
     def __init__(self, title="", parent=None):
         super().__init__(parent)
