@@ -17,17 +17,13 @@ from PyQt5.QtGui import QFont, QColor
 from .styles import WarframeStyles
 from .widgets import WarframeButton, StatusLabel, ConsoleOutputWidget
 
-# Импортируем core модули через иниты
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# Импорт из core.database (предполагаем, что там есть __init__.py с этими функциями)
 try:
     from core.database import initialize_database, get_session
 except ImportError:
-    # Если нет инита, импортируем напрямую
     from core.database.initialization_db import initialize_database, get_session
 
-# Импорт из core.repositories (используем ваш __init__.py)
 from core.repositories import (
     DeviceRepository,
     ModelRepository,
@@ -36,11 +32,9 @@ from core.repositories import (
     DeploymentRepository
 )
 
-# Импорт из core.services (уже есть инит)
 from core.services import OptimizationService, UniversalDeviceService, ModelValidationService
 
 class WorkerThread(QThread):
-    """Поток для выполнения длительных операций"""
     
     finished = pyqtSignal(object)
     progress = pyqtSignal(int, str)
@@ -60,24 +54,20 @@ class WorkerThread(QThread):
             self.error.emit(str(e))
 
 class MainWindow(QMainWindow):
-    """Главное окно приложения (только главная страница)"""
     
     def __init__(self):
         super().__init__()
         
         print("Инициализация БД и сервисов...")
-        # Инициализация БД и репозиториев
         self.engine = initialize_database()
         self.session = get_session(self.engine)
         
-        # Инициализируем репозитории через конструкторы
         self.device_repo = DeviceRepository(self.session)
         self.model_repo = ModelRepository(self.session)
         self.optimized_model_repo = OptimizedModelRepository(self.session)
         self.optimization_record_repo = OptimizationRecordRepository(self.session)
         self.deployment_repo = DeploymentRepository(self.session)
 
-        # Инициализируем сервисы
         self.optimization_service = OptimizationService(
             self.device_repo,
             self.model_repo,
@@ -86,7 +76,6 @@ class MainWindow(QMainWindow):
         self.validation_service = ModelValidationService(self.optimization_record_repo)
         self.device_service = UniversalDeviceService(self.device_repo)
         
-        # Сохраняем ссылки на карточки статистики
         self.stat_cards = {}
         
         self.dashboard_page = None
@@ -102,8 +91,6 @@ class MainWindow(QMainWindow):
         print("Инициализация завершена")
     
     def init_ui(self):
-        """Инициализация UI (только главная страница)"""
-        # Меняем название окна на Neuro-Optimizer
         self.setWindowTitle("Neuro-Optimizer")
         self.setGeometry(100, 100, 1400, 800)
         
@@ -116,11 +103,10 @@ class MainWindow(QMainWindow):
         self.main_layout.setContentsMargins(20, 20, 20, 20)
         self.main_layout.setSpacing(10)
         
-        # Панель навигации (упрощенная)
+        # Панель навигации
         nav_frame = self.create_navigation()
         self.main_layout.addWidget(nav_frame)
         
-        # Только главная страница
         self.dashboard_page = self.create_dashboard_page()
         self.models_page = self.create_models_page()
         self.devices_page = self.create_devices_page()
@@ -128,7 +114,6 @@ class MainWindow(QMainWindow):
         self.optimization_reports_page = self.create_optimization_reports_page()
         self.deployment_reports_page = self.create_deployment_reports_page()
 
-        # Создайте QStackedWidget
         self.stacked_widget = QStackedWidget()
         self.stacked_widget.addWidget(self.dashboard_page)
         self.stacked_widget.addWidget(self.models_page)
@@ -137,7 +122,6 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.deployment_reports_page)
 
 
-        # Вместо self.main_layout.addWidget(self.dashboard_page)
         self.main_layout.addWidget(self.stacked_widget)
         
         
@@ -147,7 +131,6 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status_bar)
     
     def create_navigation(self):
-        """Создать панель навигации с переключением страниц"""
         frame = QFrame()
         frame.setStyleSheet("""
             QFrame {
@@ -161,7 +144,6 @@ class MainWindow(QMainWindow):
         layout = QHBoxLayout(frame)
         layout.setSpacing(10)
         
-        # Сохраняем ссылки на кнопки для изменения стилей
         self.nav_buttons = {}
         
         # Кнопка ГЛАВНАЯ
@@ -271,10 +253,8 @@ class MainWindow(QMainWindow):
         return frame
     
     def switch_page(self, page_id):
-        """Переключить на указанную страницу"""
         print(f"Переключение на страницу: {page_id}")
         
-        # Обновляем стили кнопок
         for pid, btn in self.nav_buttons.items():
             if pid == page_id:
                 btn.setStyleSheet("""
@@ -294,7 +274,6 @@ class MainWindow(QMainWindow):
                     }
                 """)
         
-        # Переключаем страницы
         if page_id == "dashboard":
             self.stacked_widget.setCurrentWidget(self.dashboard_page)
             self.refresh_dashboard_stats()
@@ -313,11 +292,9 @@ class MainWindow(QMainWindow):
             self.stacked_widget.setCurrentWidget(self.deployment_reports_page)
             self.refresh_deployment_reports_table()
         else:
-            # Для других страниц показываем заглушку
             self.show_stub_page(page_id)
     
     def show_stub_page(self, page_id):
-        """Показать заглушку для страницы в разработке"""
         stub_widget = QWidget()
         layout = QVBoxLayout(stub_widget)
         
@@ -332,25 +309,21 @@ class MainWindow(QMainWindow):
 
 
     def create_dashboard_page(self):
-        """Создать упрощенную страницу дашборда"""
         page = QWidget()
         layout = QVBoxLayout(page)
         
-        # Заголовок - убрали смайлики
         title = QLabel("NEURO OPTIMIZER")
         title.setFont(WarframeStyles.get_font(24, True))
         title.setStyleSheet("color: #00B7EB; margin-bottom: 20px;")
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
         
-        # Подзаголовок
         subtitle = QLabel("ГЛАВНОЕ МЕНЮ")
         subtitle.setFont(WarframeStyles.get_font(18))
         subtitle.setStyleSheet("color: #FFFFFF; margin-bottom: 30px;")
         subtitle.setAlignment(Qt.AlignCenter)
         layout.addWidget(subtitle)
         
-        # Статистика в виде карточек
         stats_layout = QHBoxLayout()
         
         stats = [
@@ -407,7 +380,6 @@ class MainWindow(QMainWindow):
         return page
     
     def create_stat_card(self, title, value, color, card_id):
-        """Создать карточку статистики"""
         card = QFrame()
         card.setObjectName(f"stat_card_{card_id}")
         card.setStyleSheet(f"""
@@ -435,7 +407,6 @@ class MainWindow(QMainWindow):
         layout.addWidget(title_label)
         layout.addWidget(value_label)
         
-        # Сохраняем ссылку на карточку
         self.stat_cards[card_id] = {
             'widget': card,
             'value_label': value_label,
@@ -450,21 +421,16 @@ class MainWindow(QMainWindow):
         return card
     
     def refresh_dashboard_stats(self):
-        """Обновить статистику на дашборде"""
         try:
-            # Обновляем каждую карточку статистики
             for card_id, card_data in self.stat_cards.items():
                 value_label = card_data['value_label']
                 count_func = card_data['count_func']
                 
-                # Получаем актуальное значение
                 new_value = count_func()
                 value_label.setText(str(new_value))
                 
-                # Обновляем карточку
                 card_data['widget'].update()
             
-            # Обновляем весь дашборд
             self.dashboard_page.update()
             print(f"Статистика обновлена: модели={self.get_model_count()}, устройства={self.get_device_count()}")
             
@@ -472,7 +438,6 @@ class MainWindow(QMainWindow):
             print(f"Ошибка при обновлении статистики: {e}")
     
     def create_status_bar(self):
-        """Создать статус бар"""
         status_bar = QStatusBar()
         status_bar.setStyleSheet("""
             QStatusBar {
@@ -482,21 +447,17 @@ class MainWindow(QMainWindow):
             }
         """)
         
-        # Статус БД
         self.db_status = QLabel("● БД: АКТИВНА")
         self.db_status.setStyleSheet("color: #2ECC71;")
         status_bar.addWidget(self.db_status)
         
-        # Количество подключений
         self.connections_label = QLabel("Подключения: 0")
         status_bar.addWidget(self.connections_label)
         
-        # Время работы
         self.start_time = datetime.now()
         self.uptime_label = QLabel("Время работы: 00:00:00")
         status_bar.addPermanentWidget(self.uptime_label)
         
-        # Таймер для обновления времени работы
         self.uptime_timer = QTimer()
         self.uptime_timer.timeout.connect(self.update_uptime)
         self.uptime_timer.start(1000)
@@ -504,10 +465,8 @@ class MainWindow(QMainWindow):
         return status_bar
     
     def apply_styles(self):
-        """Применить стили Warframe"""
         self.setStyleSheet(WarframeStyles.get_stylesheet())
     
-    # Методы получения статистики
     def get_model_count(self):
         try:
             models = self.model_repo.get_all()
@@ -541,26 +500,21 @@ class MainWindow(QMainWindow):
             return 0
     
     def update_uptime(self):
-        """Обновить время работы"""
         delta = datetime.now() - self.start_time
         hours = delta.seconds // 3600
         minutes = (delta.seconds % 3600) // 60
         seconds = delta.seconds % 60
         self.uptime_label.setText(f"Время работы: {hours:02d}:{minutes:02d}:{seconds:02d}")
     
-    # Методы быстрых действий
     def add_model(self):
-        """Добавить новую модель через диалоговое окно"""
         dialog = QDialog(self)
         dialog.setWindowTitle("ДОБАВЛЕНИЕ НОВОЙ МОДЕЛИ")
         dialog.setModal(True)
         dialog.setMinimumWidth(500)
         dialog.setMinimumHeight(400)
         
-        # Основной layout
         layout = QVBoxLayout(dialog)
         
-        # Информация о формате
         info_label = QLabel(
             "Поддерживаемые форматы моделей: .h5, .keras, .onnx, .pb, .tflite<br>"
             "Типы моделей: cv (компьютерное зрение)"
@@ -575,7 +529,6 @@ class MainWindow(QMainWindow):
         info_label.setWordWrap(True)
         layout.addWidget(info_label)
         
-        # Форма для ввода данных
         form_group = QGroupBox("ПАРАМЕТРЫ МОДЕЛИ")
         form_group.setStyleSheet("""
             QGroupBox {
@@ -595,12 +548,10 @@ class MainWindow(QMainWindow):
         
         form_layout = QFormLayout()
         
-        # Поле для названия модели
         model_name_input = QLineEdit()
         model_name_input.setPlaceholderText("Введите название модели")
         form_layout.addRow("Название модели:", model_name_input)
         
-        # Поле для пути с кнопкой обзора
         path_layout = QHBoxLayout()
         model_path_input = QLineEdit()
         model_path_input.setPlaceholderText("Выберите файл модели")
@@ -609,7 +560,6 @@ class MainWindow(QMainWindow):
         browse_btn = WarframeButton("Обзор")
         browse_btn.setMinimumWidth(80)
         
-        # Локальная функция для обзора файлов
         def browse_file():
             file_dialog = QFileDialog()
             file_path, _ = file_dialog.getOpenFileName(
@@ -782,7 +732,6 @@ class MainWindow(QMainWindow):
     
 
     def closeEvent(self, event):
-        """Обработчик закрытия окна"""
         reply = QMessageBox.question(
             self,
             "Выход",
@@ -800,7 +749,6 @@ class MainWindow(QMainWindow):
 
 
     def add_device(self):
-        """Добавить новое устройство через диалоговое окно"""
         dialog = QDialog(self)
         dialog.setWindowTitle("ДОБАВЛЕНИЕ НОВОГО УСТРОЙСТВА")
         dialog.setModal(True)
@@ -880,7 +828,7 @@ class MainWindow(QMainWindow):
         connect_group.setLayout(connect_layout)
         layout.addWidget(connect_group)
         
-        # Панель ручного ввода (скрыта по умолчанию)
+        # Панель ручного ввода
         self.manual_panel = QGroupBox("РУЧНОЙ ВВОД ПАРАМЕТРОВ")
         self.manual_panel.setStyleSheet("""
             QGroupBox {
@@ -1031,7 +979,6 @@ class MainWindow(QMainWindow):
         dialog.exec_()
 
     def validate_device_connection_form(self):
-        """Валидация формы подключения к устройству"""
         ip = self.device_ip_input.text().strip()
         username = self.device_username_input.text().strip()
         password = self.device_password_input.text().strip()
@@ -1070,7 +1017,6 @@ class MainWindow(QMainWindow):
         self.device_add_button.setEnabled(True)
 
     def validate_device_manual_form(self):
-        """Валидация формы ручного ввода параметров"""
         # Сначала проверяем данные подключения
         self.validate_device_connection_form()
         if not self.device_add_button.isEnabled():
@@ -1108,7 +1054,6 @@ class MainWindow(QMainWindow):
         self.device_add_button.setEnabled(True)
 
     def process_device_add(self, dialog):
-        """Обработать добавление устройства"""
         try:
             # Получаем данные подключения
             ip_address = self.device_ip_input.text().strip()
@@ -1543,8 +1488,7 @@ class MainWindow(QMainWindow):
             self.device_progress_bar.setVisible(False)
            
     
-    def show_optimization_dialog(self):
-        """Поазать диалог оптимизации (модальное окно)"""
+    def show_optimization_dialog(self):\
         dialog = QDialog(self)
         dialog.setWindowTitle("ОПТИМИЗАЦИЯ МОДЕЛИ")
         dialog.setModal(True)
