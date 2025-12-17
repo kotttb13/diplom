@@ -801,7 +801,7 @@ class MainWindow(QMainWindow):
         
         # Имя пользователя
         self.device_username_input = QLineEdit()
-        self.device_username_input.setPlaceholderText("u0_a398")
+        self.device_username_input.setPlaceholderText("u0_a403")
         self.device_username_input.textChanged.connect(self.validate_device_connection_form)
         connect_layout.addRow("Имя пользователя:", self.device_username_input)
         
