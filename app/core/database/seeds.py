@@ -3,7 +3,7 @@ from core.database.models import ModelFormat, DeviceType, ModelType
 
 def seed_device_types(session):
     devices_types = [
-            DeviceType(name = "Android"),
+            DeviceType(name = "android"),
             DeviceType(name = "RaspberryPI")
         ]
 
