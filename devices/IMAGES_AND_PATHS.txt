@@ -1,0 +1,28 @@
+Docker image sources used by the project
+=======================================
+
+All dockerized device images are kept in these folders:
+
+- ../android
+  - Dockerfile
+  - entrypoint.sh
+  - fakefs/
+
+- ../raspberry
+  - Dockerfile
+  - entrypoint.sh
+  - vcgencmd
+  - fakefs/
+
+- ../ubuntu
+  - Dockerfile
+  - entrypoint.sh
+  - fakefs/
+
+Compose file:
+- ../docker-compose.yml
+
+Note:
+This `devices/` folder is the central reference directory with
+device docs and image source map.
+

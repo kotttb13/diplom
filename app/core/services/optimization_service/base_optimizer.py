@@ -40,7 +40,7 @@ class BaseOptimizer(ABC):
         pass
     
     @abstractmethod
-    def can_optimize(self, model_type: str, model_format: str) -> bool:
+    def can_optimize(self, model_format: str) -> bool:
        pass
 
 
@@ -56,7 +56,4 @@ class BaseOptimizer(ABC):
         if not model_details:
             return False
         
-        return self.can_optimize(
-            model_details['model_type'], 
-            model_details['model_format']
-        )
+        return self.can_optimize(model_details['model_format'])

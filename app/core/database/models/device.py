@@ -14,6 +14,12 @@ class Device(Base):
     memory_gb = Column(Float)
     ram_gb = Column(Float)
     cpu_core = Column(Integer)
+    device_type = Column(String, nullable=False, default="android")
+    username = Column(String)
+    password = Column(String)
+    port = Column(Integer)
+    cpu_frequency = Column(Integer)
+    gpu_memory = Column(Integer)
     last_seen =  Column(DateTime, default=datetime.utcnow)
 
     deployment_record_device = relationship("DeploymentRecord", back_populates="device_deployment_record")

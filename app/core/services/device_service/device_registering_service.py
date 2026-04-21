@@ -3,7 +3,6 @@ from datetime import datetime
 import logging
 
 from core.database.models import Device
-from core.database.models import DeviceType
 
 from core.repositories.device_repository import DeviceRepository
 
@@ -12,9 +11,10 @@ class DeviceRegisteringService:
         self.device_repo = device_repository
         self.logger = logging.getLogger(__name__)
 
-    def add_device(self, ip_address: str, device_type: str, 
-                architecture: str, memory_gb: float, ram_gb: float, cpu_core: int, last_seen )-> Device:
-        device_type_id =self.get_device_type_id(device_type)
+    def add_device(self, ip_address: str, device_type: str,
+                architecture: str, memory_gb: float, ram_gb: float, cpu_core: int, last_seen,
+                device_type_actual: str = None, cpu_frequency: int = None, gpu_memory: int = None )-> Device:
+        device_type_id = self.device_repo.get_or_create_device_type_id(device_type)
         device = Device(
         
             ip_address=ip_address,
@@ -23,6 +23,9 @@ class DeviceRegisteringService:
             memory_gb = memory_gb,
             ram_gb = ram_gb,
             cpu_core = cpu_core,
+            device_type=device_type_actual or device_type,
+            cpu_frequency=cpu_frequency,
+            gpu_memory=gpu_memory,
             last_seen =  last_seen
             
         )
@@ -53,6 +56,6 @@ class DeviceRegisteringService:
     def get_devices_by_ip(self, device_ip: str) -> Device:
         return self.device_repo.get_id_by_ip(device_ip)
     
-    def get_device_type_id(self, device_type: int) -> Device:
+    def get_device_type_id(self, device_type: str) -> int:
         return self.device_repo.get_device_type_id(device_type)
 

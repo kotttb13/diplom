@@ -1,0 +1,80 @@
+services:
+  raspberry:
+    build:
+      context: ./raspberry
+      dockerfile: Dockerfile
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+    platform: linux/arm64
+    container_name: ssh_raspberry
+    ports:
+      - "2222:22"
+    environment:
+      - SSH_USER=pi
+      - SSH_PASSWORD=raspberry
+    volumes:
+      - ./raspberry/fakefs:/_device:ro
+    networks:
+      - device-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -x sshd >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  ubuntu:
+    build:
+      context: ./ubuntu
+      dockerfile: Dockerfile
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+    platform: linux/amd64
+    container_name: ssh_ubuntu
+    ports:
+      - "2223:22"
+    environment:
+      - SSH_USER=root
+      - SSH_PASSWORD=raspberry
+    volumes:
+      - ./ubuntu/fakefs:/_device:ro
+    networks:
+      - device-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -x sshd >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  android:
+    build:
+      context: ./android
+      dockerfile: Dockerfile
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+    platform: linux/amd64
+    container_name: ssh_android
+    ports:
+      - "8022:8022"
+    environment:
+      - SSH_USER=root
+      - SSH_PASSWORD=raspberry
+    volumes:
+      - ./android/fakefs:/_device:ro
+    networks:
+      - device-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -x sshd >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+networks:
+  device-network:
+    driver: bridge
+    name: ssh-test-network

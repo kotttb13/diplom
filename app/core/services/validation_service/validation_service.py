@@ -152,7 +152,12 @@ class ModelValidationService:
                 optimized_model_path, x_test, y_test, optimized_format
             )
             
-           
+            # If either side failed (returns error/None metrics), report as validation failure.
+            for label, m in (("original", original_metrics), ("optimized", optimized_metrics)):
+                if m.get("error") or m.get("accuracy") is None or m.get("loss") is None:
+                    err = m.get("error") or "Метрики недоступны (accuracy/loss = None)"
+                    return {"success": False, "error": f"Валидация {label} модели не удалась: {err}"}
+
             return {
                 'success': True,
                 'accuracy_before': original_metrics["accuracy"],
@@ -164,7 +169,7 @@ class ModelValidationService:
             
         except Exception as e:
             self.logger.error(f"Ошибка валидации пары моделей: {e}")
-            return { 'succes': False, 'error': str(e)}
+            return { 'success': False, 'error': str(e)}
     
 
     

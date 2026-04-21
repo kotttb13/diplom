@@ -3,8 +3,9 @@ from core.database.models import ModelFormat, DeviceType, ModelType
 
 def seed_device_types(session):
     devices_types = [
-            DeviceType(name = "Android"),
-            DeviceType(name = "RaspberryPI")
+            DeviceType(name = "android"),
+            DeviceType(name = "raspberry_pi"),
+            DeviceType(name = "linux")
         ]
 
         
@@ -16,30 +17,22 @@ def seed_device_types(session):
         
 
 def seed_model_formats(session):
-    model_formats = [
-            ModelFormat(name="onnx"),
-            ModelFormat(name="pb"),
-            ModelFormat(name="h5"),
-            ModelFormat(name="hdf5"),
-            ModelFormat(name="keras"),
-            ModelFormat(name="tflite"),
-            ModelFormat(name="lite")
-        ]
-    existing_formats = session.query(ModelFormat).count()
-    if existing_formats==0:
-        session.add_all(model_formats)
+    required_formats = ["onnx", "pb", "h5", "hdf5", "keras", "tflite", "lite", "pt", "pth"]
+    existing_formats = {row[0].lower() for row in session.query(ModelFormat.name).all()}
+    missing = [ModelFormat(name=name) for name in required_formats if name not in existing_formats]
+    if missing:
+        session.add_all(missing)
         return True
-    return False 
+    return False
 
 def seed_model_types(session):
-    model_types = [
-            ModelType(name="cv")
-        ]
-    existing_types = session.query(ModelType).count()
-    if existing_types==0:
-        session.add_all(model_types)
+    required_types = ["general", "cv", "nlp", "audio"]
+    existing_types = {row[0].lower() for row in session.query(ModelType.name).all()}
+    missing = [ModelType(name=name) for name in required_types if name not in existing_types]
+    if missing:
+        session.add_all(missing)
         return True
-    return False 
+    return False
 
 
 def seed_initial_data(session):

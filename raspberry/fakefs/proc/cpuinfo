@@ -1,0 +1,21 @@
+processor	: 0
+model name	: ARMv8 Processor rev 3 (v8l)
+Features	: fp asimd evtstrm crc32 cpuid
+CPU implementer	: 0x41
+CPU architecture: 8
+CPU variant	: 0x0
+CPU part	: 0xd08
+CPU revision	: 3
+
+processor	: 1
+model name	: ARMv8 Processor rev 3 (v8l)
+
+processor	: 2
+model name	: ARMv8 Processor rev 3 (v8l)
+
+processor	: 3
+model name	: ARMv8 Processor rev 3 (v8l)
+
+Hardware	: BCM2711
+Revision	: c03114
+Model		: Raspberry Pi 4 Model B Rev 1.4

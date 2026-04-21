@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 from datetime import datetime
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -7,7 +8,7 @@ from PyQt5.QtWidgets import (
     QTableWidgetItem, QMessageBox, QFileDialog, QInputDialog,
     QGroupBox, QHeaderView, QFormLayout, QLineEdit, QSizePolicy,
     QDialog, QDialogButtonBox, QStatusBar, QProgressBar, QComboBox, QButtonGroup,
-    QAbstractItemView, QAction, QMenu, QStackedWidget, QProgressDialog, QSpinBox
+    QAbstractItemView, QAction, QMenu, QStackedWidget, QProgressDialog, QSpinBox, QCheckBox
 )
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QThread
 from PyQt5.QtGui import QFont, QColor
@@ -32,7 +33,7 @@ from core.repositories import (
     DeploymentRepository
 )
 
-from core.services import OptimizationService, UniversalDeviceService, ModelValidationService
+from core.services import OptimizationService, UniversalDeviceService, ModelValidationService, ModelInspectionService
 
 class WorkerThread(QThread):
     
@@ -67,7 +68,6 @@ class MainWindow(QMainWindow):
         self.optimized_model_repo = OptimizedModelRepository(self.session)
         self.optimization_record_repo = OptimizationRecordRepository(self.session)
         self.deployment_repo = DeploymentRepository(self.session)
-
         self.optimization_service = OptimizationService(
             self.device_repo,
             self.model_repo,
@@ -89,6 +89,20 @@ class MainWindow(QMainWindow):
         self.apply_styles()
         
         print("Инициализация завершена")
+
+    def _format_strategy_text(self, strategy: dict) -> str:
+        if not strategy:
+            return "Стратегия: N/A"
+        ort_level = strategy.get("ort_graph_level", strategy.get("profile", "N/A"))
+        fp16 = strategy.get("convert_to_fp16", False)
+        return (
+            f"Стратегия оптимизации:\n"
+            f"• Профиль: {strategy.get('optimization_level', strategy.get('profile', 'N/A'))}\n"
+            f"• ORT уровень: {ort_level}\n"
+            f"• FP16: {'ON' if fp16 else 'OFF'}\n"
+            f"• Квантование: {strategy.get('quantization_type', 'none')}\n"
+            f"• Целевой формат: {strategy.get('target_format', 'auto')}"
+        )
     
     def init_ui(self):
         self.setWindowTitle("Neuro-Optimizer")
@@ -472,6 +486,7 @@ class MainWindow(QMainWindow):
             models = self.model_repo.get_all()
             return len(models)
         except Exception as e:
+            self.session.rollback()
             print(f"Ошибка получения количества моделей: {e}")
             return 0
     
@@ -480,6 +495,7 @@ class MainWindow(QMainWindow):
             devices = self.device_repo.get_all()
             return len(devices)
         except Exception as e:
+            self.session.rollback()
             print(f"Ошибка получения количества устройств: {e}")
             return 0
     
@@ -488,6 +504,7 @@ class MainWindow(QMainWindow):
             records = self.optimization_record_repo.get_recent_records(limit=1000)
             return len(records)
         except Exception as e:
+            self.session.rollback()
             print(f"Ошибка получения количества оптимизаций: {e}")
             return 0
     
@@ -496,8 +513,27 @@ class MainWindow(QMainWindow):
             deployments = self.deployment_repo.get_all()
             return len(deployments)
         except Exception as e:
+            self.session.rollback()
             print(f"Ошибка получения количества развертываний: {e}")
             return 0
+
+    def _cleanup_missing_model_paths(self):
+        models = self.model_repo.get_all()
+        removed = 0
+        for model in models:
+            if not model.original_path or not os.path.exists(model.original_path):
+                self.model_repo.delete(model.id)
+                removed += 1
+        return removed
+
+    def _cleanup_missing_optimized_model_paths(self):
+        optimized_models = self.optimized_model_repo.get_all()
+        removed = 0
+        for model in optimized_models:
+            if not model.path or not os.path.exists(model.path):
+                self.optimized_model_repo.delete(model)
+                removed += 1
+        return removed
     
     def update_uptime(self):
         delta = datetime.now() - self.start_time
@@ -566,7 +602,7 @@ class MainWindow(QMainWindow):
                 dialog,
                 "Выберите файл модели",
                 "",
-                "Модели (*.h5 *.keras *.onnx *.pb *.tflite);;Все файлы (*)"
+                "Модели (*.h5 *.keras *.onnx *.pb *.tflite *.pt *.pth);;Все файлы (*)"
             )
             if file_path:
                 model_path_input.setText(file_path)
@@ -574,11 +610,6 @@ class MainWindow(QMainWindow):
         browse_btn.clicked.connect(browse_file)
         path_layout.addWidget(browse_btn)
         form_layout.addRow("Путь к файлу:", path_layout)
-        
-        # Выбор типа модели
-        model_type_combo = QComboBox()
-        model_type_combo.addItems(["cv", "nlp", "audio"])
-        form_layout.addRow("Тип модели:", model_type_combo)
         
         # Информация о формате
         format_label = QLabel("Формат: не определен")
@@ -598,9 +629,7 @@ class MainWindow(QMainWindow):
         def validate_form():
             name = model_name_input.text().strip()
             path = model_path_input.text().strip()
-            model_type = model_type_combo.currentText().strip()
-            
-            if not name or not path or not model_type:
+            if not name or not path:
                 validation_status.setText("Заполните все поля")
                 validation_status.setStyleSheet("color: #F1C40F; font-weight: bold; padding: 5px;")
                 add_button.setEnabled(False)
@@ -613,16 +642,10 @@ class MainWindow(QMainWindow):
                 return
             
             file_extension = path.split('.')[-1].lower() if '.' in path else ''
-            supported_extensions = ['h5', 'keras', 'onnx', 'pb', 'tflite']
+            supported_extensions = ['h5', 'keras', 'onnx', 'pb', 'tflite', 'pt', 'pth']
             
             if file_extension not in supported_extensions:
                 validation_status.setText(f"Неподдерживаемый формат: .{file_extension}")
-                validation_status.setStyleSheet("color: #E74C3C; font-weight: bold; padding: 5px;")
-                add_button.setEnabled(False)
-                return
-            
-            if model_type not in ['cv']:
-                validation_status.setText(f"Неподдерживаемый тип модели: {model_type}")
                 validation_status.setStyleSheet("color: #E74C3C; font-weight: bold; padding: 5px;")
                 add_button.setEnabled(False)
                 return
@@ -633,7 +656,9 @@ class MainWindow(QMainWindow):
                 'keras': 'Keras',
                 'onnx': 'ONNX',
                 'pb': 'TensorFlow Protocol Buffer',
-                'tflite': 'TensorFlow Lite'
+                'tflite': 'TensorFlow Lite',
+                'pt': 'PyTorch',
+                'pth': 'PyTorch'
             }
             
             if file_extension in supported_formats:
@@ -651,7 +676,6 @@ class MainWindow(QMainWindow):
         # Подключаем сигналы для валидации
         model_name_input.textChanged.connect(validate_form)
         model_path_input.textChanged.connect(validate_form)
-        model_type_combo.currentTextChanged.connect(validate_form)
         
         # Кнопки диалога
         button_box = QDialogButtonBox()
@@ -686,17 +710,15 @@ class MainWindow(QMainWindow):
             try:
                 name = model_name_input.text().strip()
                 path = model_path_input.text().strip()
-                model_type = model_type_combo.currentText().strip().lower()
-                
                 # Определяем формат файла
-                file_extension = path.split('.')[-1].lower() if '.' in path else 'unknown'
-                format_name = file_extension if file_extension in ['h5', 'keras', 'onnx', 'pb', 'tflite'] else 'unknown'
+                format_name = ModelInspectionService.detect_format(path)
+                if format_name == "unknown":
+                    raise ValueError("Неподдерживаемое расширение модели")
                 file_size = os.path.getsize(path) / (1024 * 1024)
                 # Добавляем модель в базу данных
                 model = self.model_repo.create_model(
                     name=name,
                     original_path=path,
-                    model_type_name=model_type,
                     format_name=format_name, 
                     size = file_size
                 )
@@ -821,7 +843,7 @@ class MainWindow(QMainWindow):
         
         # Тип устройства
         self.device_type_combo = QComboBox()
-        self.device_type_combo.addItems(["android"])
+        self.device_type_combo.addItems(["android", "linux", "raspberry_pi", "auto"])
         self.device_type_combo.currentTextChanged.connect(self.validate_device_connection_form)
         connect_layout.addRow("Тип устройства:", self.device_type_combo)
         
@@ -913,6 +935,87 @@ class MainWindow(QMainWindow):
         mode_buttons_layout.addWidget(self.auto_mode_btn)
         mode_buttons_layout.addWidget(self.manual_mode_btn)
         layout.addLayout(mode_buttons_layout)
+
+        # Блок сетевого сканирования внутри окна добавления устройства
+        scan_group = QGroupBox("ПОИСК УСТРОЙСТВ В СЕТИ")
+        scan_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                color: #00B7EB;
+                border: 1px solid #32363C;
+                border-radius: 3px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        scan_layout = QVBoxLayout()
+
+        self.scan_devices_btn = WarframeButton("СКАНИРОВАТЬ СЕТЬ")
+        self.scan_devices_btn.setMinimumHeight(36)
+        self.scan_devices_btn.clicked.connect(self.scan_network_devices)
+        scan_layout.addWidget(self.scan_devices_btn)
+
+        self.scan_results_combo = QComboBox()
+        self.scan_results_combo.setEnabled(False)
+        self.scan_results_combo.addItem("")
+        self.scan_results_combo.setStyleSheet("""
+            QComboBox {
+                background-color: #1A1E24;
+                color: #FFFFFF;
+                border: 2px solid #00B7EB;
+                border-radius: 4px;
+                padding: 8px 34px 8px 10px;
+                min-height: 34px;
+                font-weight: bold;
+            }
+            QComboBox:hover {
+                border-color: #3CC9F0;
+            }
+            QComboBox:focus {
+                border-color: #7FDBFF;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 28px;
+                border-left: 1px solid #00B7EB;
+                background-color: #0F141A;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                width: 0;
+                height: 0;
+                border-left: 6px solid transparent;
+                border-right: 6px solid transparent;
+                border-top: 8px solid #00B7EB;
+                margin-right: 8px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #1A1E24;
+                color: #FFFFFF;
+                border: 1px solid #32363C;
+                selection-background-color: #00B7EB;
+                selection-color: #0A0E14;
+                outline: 0;
+            }
+        """)
+        self.scan_results_combo.currentIndexChanged.connect(self._on_scanned_device_selected)
+        scan_layout.addWidget(self.scan_results_combo)
+
+        scan_hint = QLabel(
+            "Выберите устройство из списка выше: после выбора поля подключения "
+        )
+        scan_hint.setWordWrap(True)
+        scan_hint.setStyleSheet("color: #9FB3C8; font-size: 11px;")
+        scan_layout.addWidget(scan_hint)
+
+        scan_group.setLayout(scan_layout)
+        layout.addWidget(scan_group)
         
         # Группа кнопок
         mode_button_group = QButtonGroup()
@@ -992,10 +1095,12 @@ class MainWindow(QMainWindow):
             self.device_add_button.setEnabled(False)
             return
         
-        # Проверяем IP адрес (простая валидация)
+        # Проверяем адрес устройства: IPv4 или hostname
         ip_parts = ip.split('.')
-        if len(ip_parts) != 4:
-            self.device_validation_status.setText("Неверный формат IP адреса")
+        is_ipv4 = len(ip_parts) == 4 and all(part.isdigit() and 0 <= int(part) <= 255 for part in ip_parts)
+        is_hostname = all(ch.isalnum() or ch in "-._" for ch in ip) and ip[0].isalnum()
+        if not is_ipv4 and not is_hostname:
+            self.device_validation_status.setText("Неверный формат адреса устройства (IPv4/hostname)")
             self.device_validation_status.setStyleSheet("color: #E74C3C; font-weight: bold; padding: 5px;")
             self.device_add_button.setEnabled(False)
             return
@@ -1073,6 +1178,9 @@ class MainWindow(QMainWindow):
             existing_device = self.device_repo.get_by_ip(ip_address)
             print(f"Существующее устройство: {'Да' if existing_device else 'Нет'}")
             if existing_device:
+                existing_device.username = username
+                existing_device.password = password
+                existing_device.port = int(port) if port.isdigit() else existing_device.port
                 print(f"ID существующего устройства: {existing_device.id}")
             
             # Показываем прогресс бар
@@ -1111,25 +1219,54 @@ class MainWindow(QMainWindow):
                         
                         try:
                             print("Попытка получения информации об устройстве...")
-                            # Получаем информацию об устройстве БЕЗ сохранения в БД
-                            device_info = self.device_service.get_free_memory()
+                            # Получаем полную информацию об устройстве БЕЗ сохранения в БД
+                            device_info = self.device_service.get_device_info()
                             print(f"Результат get_device_info: {device_info}")
                             
-                            if device_info and device_info.get('memory_gb'):
+                            if device_info and device_info.get('success'):
                                 # Извлекаем информацию
                                 info = device_info
                                 
                                 # Обновляем только необходимые поля существующего устройства
                                 try:
-                                    # Обновляем memory_gb если есть
-                                    if 'memory_gb' in info:
-                                        memory_value = str(info['memory_gb'])
-                                        print(f"Получено memory_gb: {memory_value}")
+                                    # Безопасные конвертеры, чтобы не падать на пустых/строковых значениях.
+                                    def _to_float_or_none(value):
+                                        if value is None:
+                                            return None
+                                        text = str(value).strip()
+                                        if not text:
+                                            return None
                                         import re
-                                        numbers = re.findall(r'\d+\.?\d*', memory_value)
-                                        if numbers:
-                                            existing_device.memory_gb = float(numbers[0])
-                                            print(f"Преобразованное memory_gb: {existing_device.memory_gb}")
+                                        numbers = re.findall(r'\d+\.?\d*', text)
+                                        return float(numbers[0]) if numbers else None
+
+                                    def _to_int_or_none(value):
+                                        as_float = _to_float_or_none(value)
+                                        return int(as_float) if as_float is not None else None
+
+                                    # Обновляем характеристики, если удалось распарсить.
+                                    if 'memory_gb' in info:
+                                        value = _to_float_or_none(info.get('memory_gb'))
+                                        if value is not None:
+                                            existing_device.memory_gb = value
+                                    if 'ram_gb' in info:
+                                        value = _to_float_or_none(info.get('ram_gb'))
+                                        if value is not None:
+                                            existing_device.ram_gb = value
+                                    if 'cpu_core' in info:
+                                        value = _to_int_or_none(info.get('cpu_core'))
+                                        if value is not None:
+                                            existing_device.cpu_core = value
+                                    if 'cpu_frequency' in info:
+                                        value = _to_int_or_none(info.get('cpu_frequency'))
+                                        if value is not None:
+                                            existing_device.cpu_frequency = value
+                                    if 'gpu_memory' in info:
+                                        value = _to_int_or_none(info.get('gpu_memory'))
+                                        if value is not None:
+                                            existing_device.gpu_memory = value
+                                    if 'architecture' in info and info.get('architecture'):
+                                        existing_device.architecture = str(info.get('architecture')).strip()
                                     
                                     # Обновляем last_seen
                                     existing_device.last_seen = datetime.now()
@@ -1432,7 +1569,10 @@ class MainWindow(QMainWindow):
                         ram_gb=ram_gb,
                         cpu_core=cpu_core,
                         memory_gb=memory_gb,
-                        device_type=device_type
+                        device_type=device_type,
+                        username=username,
+                        password=password,
+                        port=int(port) if port.isdigit() else 8022
                     )
                     
                     self.device_progress_bar.setValue(100)
@@ -1537,6 +1677,7 @@ class MainWindow(QMainWindow):
         model_combo.setMinimumHeight(35)
         
         # Загружаем модели
+        self._cleanup_missing_model_paths()
         models = self.model_repo.get_all()
         model_combo.addItem("-- Выберите модель --", None)  # Пустой элемент
         
@@ -1667,6 +1808,25 @@ class MainWindow(QMainWindow):
         
         data_group.setLayout(data_layout)
         layout.addWidget(data_group)
+
+        # Группа параметров оптимизации
+        options_group = QGroupBox("ПАРАМЕТРЫ ОПТИМИЗАЦИИ")
+        options_layout = QFormLayout()
+        apply_quant_checkbox = QCheckBox("Применить квантование")
+        apply_quant_checkbox.setChecked(True)
+        quant_type_combo = QComboBox()
+        quant_type_combo.addItems(["dynamic", "static"])
+        target_format_combo = QComboBox()
+        target_format_combo.addItems(["auto", "tflite", "onnx"])
+        optimization_level_combo = QComboBox()
+        optimization_level_combo.addItems(["balanced", "performance", "size"])
+
+        options_layout.addRow(apply_quant_checkbox)
+        options_layout.addRow("Тип квантования:", quant_type_combo)
+        options_layout.addRow("Целевой формат:", target_format_combo)
+        options_layout.addRow("Профиль оптимизации:", optimization_level_combo)
+        options_group.setLayout(options_layout)
+        layout.addWidget(options_group)
         
         # Статус валидации
         validation_status_label = QLabel("Выберите модель, устройство и укажите тестовые данные")
@@ -1754,19 +1914,19 @@ class MainWindow(QMainWindow):
             x_data_path = x_data_input.text().strip()
             y_data_path = y_data_input.text().strip()
             
-            data_valid = all([
-                x_data_path,
-                y_data_path,
-                os.path.exists(x_data_path),
-                os.path.exists(y_data_path)
-            ])
+            data_valid = (
+                (not x_data_path and not y_data_path) or
+                (x_data_path and y_data_path and os.path.exists(x_data_path) and os.path.exists(y_data_path))
+            )
+            if apply_quant_checkbox.isChecked() and quant_type_combo.currentText() == "static":
+                data_valid = data_valid and bool(x_data_path and os.path.exists(x_data_path))
             
             if model_selected and device_selected and data_valid:
                 validation_status_label.setText("Все данные корректны. Можно запускать оптимизацию")
                 validation_status_label.setStyleSheet("color: #2ECC71; font-weight: bold; padding: 5px;")
                 start_btn.setEnabled(True)
             else:
-                validation_status_label.setText("Выберите модель, устройство и укажите тестовые данные")
+                validation_status_label.setText("Выберите модель и устройство; тестовые данные обязательны для валидации и static-квантования")
                 validation_status_label.setStyleSheet("color: #F1C40F; font-weight: bold; padding: 5px;")
                 start_btn.setEnabled(False)
         
@@ -1794,13 +1954,16 @@ class MainWindow(QMainWindow):
                 y_test_data_path = y_data_input.text().strip()
                 
                 # Загружаем данные
-                try:
-                    import numpy as np
-                    x_test_data = np.load(x_test_data_path)
-                    y_test_data = np.load(y_test_data_path)
-                except Exception as e:
-                    QMessageBox.critical(dialog, "Ошибка", f"Не удалось загрузить тестовые данные:\n{e}")
-                    return
+                x_test_data = None
+                y_test_data = None
+                if x_test_data_path and y_test_data_path:
+                    try:
+                        import numpy as np
+                        x_test_data = np.load(x_test_data_path)
+                        y_test_data = np.load(y_test_data_path)
+                    except Exception as e:
+                        QMessageBox.critical(dialog, "Ошибка", f"Не удалось загрузить тестовые данные:\n{e}")
+                        return
                 
                 # Показываем прогресс бар
                 progress_bar.setVisible(True)
@@ -1817,7 +1980,15 @@ class MainWindow(QMainWindow):
                 # Запускаем оптимизацию
                 result = self.optimization_service.optimize_model_by_id(
                     model_id=int(model_id),
-                    device_id=int(device_id)
+                    device_id=int(device_id),
+                    test_data=(x_test_data, y_test_data) if x_test_data is not None and y_test_data is not None else None,
+                    apply_quantization=apply_quant_checkbox.isChecked(),
+                    quantization_type=quant_type_combo.currentText(),
+                    optimization_options={
+                        "target_format": target_format_combo.currentText(),
+                        "optimization_level": optimization_level_combo.currentText(),
+                        "quantization_mode": quant_type_combo.currentText() if apply_quant_checkbox.isChecked() else "none",
+                    }
                 )
                 
                 if result.get('success'):
@@ -1832,14 +2003,16 @@ class MainWindow(QMainWindow):
                     validation_status_label.setText("Проверка качества модели...")
                     
                     # Валидация модели
-                    success = self.validation_service.validate_model_pair(
-                        original_model_path,
-                        result['optimized_model_path'],
-                        x_test_data,
-                        y_test_data,
-                        original_model_format,
-                        optimized_model_format
-                    )
+                    success = {"success": False, "error": "Валидация пропущена: не указаны тестовые данные"}
+                    if x_test_data is not None and y_test_data is not None:
+                        success = self.validation_service.validate_model_pair(
+                            original_model_path,
+                            result['optimized_model_path'],
+                            x_test_data,
+                            y_test_data,
+                            original_model_format,
+                            optimized_model_format
+                        )
                     
                     if success["success"]:
                         progress_bar.setValue(90)
@@ -1855,6 +2028,27 @@ class MainWindow(QMainWindow):
                         progress_bar.setValue(100)
                         validation_status_label.setText("Оптимизация завершена успешно!")
                         
+                        strategy_text = self._format_strategy_text(result.get("strategy", {}))
+                        q_note = result.get("strategy", {}).get("quantization_note")
+                        q_applied = result.get("strategy", {}).get("quantization_applied")
+                        q_metrics = result.get("strategy", {}).get("quantization_metrics") or {}
+                        q_block = ""
+                        if result.get("strategy", {}).get("apply_quantization"):
+                            if q_applied:
+                                before_b = q_metrics.get("size_before_bytes")
+                                after_b = q_metrics.get("size_after_bytes")
+                                before_ms = q_metrics.get("inference_before_ms")
+                                after_ms = q_metrics.get("inference_after_ms")
+                                q_lines = ["Квантование: применено"]
+                                if before_b is not None and after_b is not None:
+                                    q_lines.append(f"• Размер (bytes): {before_b} → {after_b}")
+                                if before_ms is not None and after_ms is not None:
+                                    q_lines.append(f"• Inference (ms): {before_ms:.3f} → {after_ms:.3f}")
+                                q_block = "\n" + "\n".join(q_lines) + "\n"
+                            else:
+                                q_block = "\nКвантование: не применено\n"
+                                if q_note:
+                                    q_block += f"• Причина: {q_note}\n"
                         # Показываем отчет
                         report = (
                             f"Оптимизация завершена успешно!\n\n"
@@ -1863,9 +2057,10 @@ class MainWindow(QMainWindow):
                             f"• Точность после оптимизации: {success['accuracy_after']:.4f}\n"
                             f"• Потери до оптимизации: {success['loss_before']:.4f}\n"
                             f"• Потери после оптимизации: {success['loss_after']:.4f}\n\n"
+                            f"{q_block}\n"
                             f"Оптимизированная модель: {result['optimized_model_path']}\n"
-                            f"Размер: {result.get('model_size_mb', 0):.2f} MB\n"
-                            f"ID оптимизированной модели: {result.get('optimized_model_id', 'N/A')}"
+                            f"ID оптимизированной модели: {result.get('optimized_model_id', 'N/A')}\n\n"
+                            f"{strategy_text}"
                         )
                         
                         QMessageBox.information(dialog, "Успех", report)
@@ -1882,7 +2077,10 @@ class MainWindow(QMainWindow):
                         validation_status_label.setText(f"Ошибка проверки качества: {error_msg}")
                         
                         QMessageBox.warning(dialog, "Внимание", 
-                            f"Оптимизация завершена, но не удалось проверить качество модели:\n{error_msg}")
+                            f"Оптимизация завершена, но не удалось проверить качество модели:\n{error_msg}\n\n"
+                            f"Размер до оптимизации: {result.get('original_model_size_mb', 0):.2f} MB\n"
+                            f"Размер после оптимизации: {result.get('optimized_model_size_mb', result.get('model_size_mb', 0)):.2f} MB\n\n"
+                            f"{self._format_strategy_text(result.get('strategy', {}))}")
                         
                 else:
                     error_msg = result.get('error', 'Неизвестная ошибка')
@@ -1901,6 +2099,10 @@ class MainWindow(QMainWindow):
         device_combo.currentIndexChanged.connect(update_device_info)
         x_data_input.textChanged.connect(validate_form)
         y_data_input.textChanged.connect(validate_form)
+        apply_quant_checkbox.stateChanged.connect(validate_form)
+        quant_type_combo.currentTextChanged.connect(validate_form)
+        target_format_combo.currentTextChanged.connect(validate_form)
+        optimization_level_combo.currentTextChanged.connect(validate_form)
         
         button_box.accepted.connect(start_optimization)
         button_box.rejected.connect(dialog.reject)
@@ -1964,6 +2166,7 @@ class MainWindow(QMainWindow):
         optimized_model_combo.setMinimumHeight(35)
         
         # Загружаем оптимизированные модели
+        self._cleanup_missing_optimized_model_paths()
         optimized_models = self.optimized_model_repo.get_all()
         optimized_model_combo.addItem("-- Выберите модель --", None)
         
@@ -2062,19 +2265,6 @@ class MainWindow(QMainWindow):
         ip_input.setPlaceholderText("IP адрес устройства")
         ip_layout.addWidget(ip_input)
         
-        # Кнопка использования IP из устройства
-        def use_device_ip():
-            device_index = device_combo.currentIndex()
-            if device_index > 0:
-                device_id = device_combo.itemData(device_index)
-                device = self.device_repo.get_by_id(device_id)
-                if device and device.ip_address:
-                    ip_input.setText(device.ip_address)
-        
-        use_ip_btn = WarframeButton("Исп. IP устройства")
-        use_ip_btn.setMinimumWidth(120)
-        use_ip_btn.clicked.connect(use_device_ip)
-        ip_layout.addWidget(use_ip_btn)
         connection_layout.addRow("IP адрес:", ip_layout)
         
         # Имя пользователя
@@ -2174,8 +2364,8 @@ class MainWindow(QMainWindow):
                     if model:
                         original_model = self.model_repo.get_by_id(model.original_model_id)
                         original_name = original_model.name if original_model else f"ID: {model.original_model_id}"
-                        
-                        info = f"Оригинальная модель: {original_name}, Формат: {model.format}"
+                        model_format = os.path.splitext(model.path)[1].lstrip(".").lower() if model.path else "unknown"
+                        info = f"Оригинальная модель: {original_name}, Формат: {model_format}"
                         optimized_model_info_label.setText(info)
                     else:
                         optimized_model_info_label.setText("Модель не найдена")
@@ -2200,6 +2390,12 @@ class MainWindow(QMainWindow):
                         # Автозаполнение IP если поле пустое
                         if not ip_input.text() and device.ip_address:
                             ip_input.setText(device.ip_address)
+
+                        # Подставляем параметры подключения из БД устройства.
+                        username_input.setText((getattr(device, "username", "") or "").strip())
+                        password_input.setText((getattr(device, "password", "") or "").strip())
+                        device_port = getattr(device, "port", None)
+                        port_input.setText(str(device_port) if device_port else "8022")
                     else:
                         device_info_label.setText("Устройство не найдено")
                 except Exception as e:
@@ -2327,8 +2523,15 @@ class MainWindow(QMainWindow):
                 deployment_status_label.setText("Проверка подключения к устройству...")
                 
                 print("Проверка подключения к устройству...")
+                selected_device_type = (getattr(device, "device_type", "") or "").strip().lower()
+                if not selected_device_type and getattr(device, "type_device", None):
+                    selected_device_type = (getattr(device.type_device, "name", "") or "").strip().lower()
+                aliases = {"raspberry": "raspberry_pi", "rpi": "raspberry_pi", "ubuntu": "linux"}
+                selected_device_type = aliases.get(selected_device_type, selected_device_type)
+                if selected_device_type not in {"android", "linux", "raspberry_pi", "auto"}:
+                    selected_device_type = "auto"
                 connect_result = self.device_service.connect_device(
-                    device_type="android",  # Или device.type если есть
+                    device_type=selected_device_type,
                     **connection_params
                 )
                 
@@ -2693,16 +2896,6 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Ошибка", "Модель не найдена")
             return
         
-        # Отладка: посмотрим что у нас в отношениях
-        print(f"DEBUG: Модель ID: {model.id}, Название: {model.name}")
-        print(f"DEBUG: model.type_neural_model = {model.type_neural_model}")
-        print(f"DEBUG: type(model.type_neural_model) = {type(model.type_neural_model)}")
-        
-        if model.type_neural_model:
-            print(f"DEBUG: dir(model.type_neural_model) = {dir(model.type_neural_model)}")
-            if hasattr(model.type_neural_model, 'name'):
-                print(f"DEBUG: model.type_neural_model.name = {model.type_neural_model.name}")
-        
         # Диалог редактирования
         dialog = QDialog(self)
         dialog.setWindowTitle(f"Редактирование: {model.name}")
@@ -2716,48 +2909,6 @@ class MainWindow(QMainWindow):
         
         name_input = QLineEdit(model.name)
         form_layout.addRow("Название:", name_input)
-        
-        # Получаем все доступные типы моделей
-        available_types = self.model_repo.get_model_types()
-        type_combo = QComboBox()
-        type_combo.addItems(available_types)
-        
-        # Устанавливаем текущий тип модели
-        current_type = "cv"  # значение по умолчанию
-        
-        # Пробуем разные способы получить тип
-        try:
-            # Способ 1: Через отношение
-            if model.type_neural_model:
-                # Если это строка
-                if isinstance(model.type_neural_model, str):
-                    current_type = model.type_neural_model
-                # Если это объект ModelType
-                elif hasattr(model.type_neural_model, 'name'):
-                    current_type = model.type_neural_model.name
-                # Если это что-то другое
-                else:
-                    print(f"DEBUG: Неизвестный тип: {type(model.type_neural_model)}")
-                    # Пробуем получить через репозиторий
-                    type_info = self.model_repo.get_model_type_and_format(model_id)
-                    if type_info and 'model_type' in type_info:
-                        current_type = type_info['model_type']
-        except Exception as e:
-            print(f"DEBUG: Ошибка получения типа через отношение: {e}")
-            # Используем запасной вариант
-            type_info = self.model_repo.get_model_type_and_format(model_id)
-            if type_info and 'model_type' in type_info:
-                current_type = type_info['model_type']
-        
-        print(f"DEBUG: Выбранный тип: {current_type}")
-        
-        # Устанавливаем текущее значение
-        if current_type in available_types:
-            type_combo.setCurrentText(current_type)
-        elif available_types:  # Если список не пустой
-            type_combo.setCurrentIndex(0)
-        
-        form_layout.addRow("Тип:", type_combo)
         
         layout.addLayout(form_layout)
         
@@ -2779,8 +2930,7 @@ class MainWindow(QMainWindow):
                 # Обновляем модель
                 self.model_repo.update(
                     model_id=model_id,
-                    name=name_input.text().strip(),
-                    type_name=type_combo.currentText()  # Передаем имя типа
+                    name=name_input.text().strip()
                 )
                 
                 QMessageBox.information(self, "Успех", "Модель обновлена")
@@ -2897,7 +3047,7 @@ class MainWindow(QMainWindow):
         refresh_btn.setMinimumHeight(40)
         refresh_btn.clicked.connect(self.refresh_devices_table)
         layout.addWidget(refresh_btn)
-        
+
         layout.addStretch()
         
         return panel
@@ -3112,6 +3262,111 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить устройства:\n{e}")
 
+    def scan_network_devices(self):
+        if hasattr(self, "scan_devices_btn") and self.scan_devices_btn:
+            self.scan_devices_btn.setEnabled(False)
+        if hasattr(self, "scan_results_combo") and self.scan_results_combo:
+            self.scan_results_combo.setEnabled(False)
+            self.scan_results_combo.clear()
+            self.scan_results_combo.addItem("Идет сканирование сети...")
+
+        self.scan_progress = QProgressDialog("Сканирование локальной сети...", "Отмена", 0, 0, self)
+        self.scan_progress.setWindowTitle("Сканирование")
+        self.scan_progress.setWindowModality(Qt.WindowModal)
+        self.scan_progress.show()
+
+        self.scan_thread = WorkerThread(self.device_service.scan_network)
+        self.scan_thread.finished.connect(self._on_scan_finished)
+        self.scan_thread.error.connect(lambda err: QMessageBox.critical(self, "Ошибка сканирования", err))
+        self.scan_thread.finished.connect(lambda _: self.scan_progress.close())
+        self.scan_thread.finished.connect(lambda _: self.scan_devices_btn.setEnabled(True) if hasattr(self, "scan_devices_btn") and self.scan_devices_btn else None)
+        self.scan_thread.error.connect(lambda _: self.scan_devices_btn.setEnabled(True) if hasattr(self, "scan_devices_btn") and self.scan_devices_btn else None)
+        self.scan_thread.start()
+
+    def _on_scan_finished(self, result):
+        if not result or not result.get("success"):
+            QMessageBox.warning(self, "Сканирование", "Не удалось выполнить сканирование сети")
+            return
+        devices = result.get("devices", [])
+        if not devices:
+            QMessageBox.information(self, "Сканирование", "Устройства с открытым SSH-портом не найдены")
+            if hasattr(self, "scan_results_combo") and self.scan_results_combo:
+                self.scan_results_combo.clear()
+                self.scan_results_combo.addItem("Устройства не найдены")
+                self.scan_results_combo.setEnabled(False)
+            return
+
+        # Если открыто окно добавления устройства — заполняем выпадающий список
+        if hasattr(self, "scan_results_combo") and self.scan_results_combo:
+            self.scan_results_combo.blockSignals(True)
+            self.scan_results_combo.clear()
+
+            seen = set()
+            normalized = []
+            for d in devices:
+                key = (str(d.get("host") or d.get("ip")), int(d.get("port") or 0))
+                if key in seen:
+                    continue
+                seen.add(key)
+                normalized.append(d)
+
+            self.scan_results_combo.addItem("Выберите найденное устройство...")
+            for d in normalized:
+                host = d.get("host") or d.get("ip")
+                port = d.get("port")
+                dtype = d.get("type") or "unknown"
+                source = d.get("source") or "lan"
+                username = d.get("username")
+                auth_status = d.get("status")
+
+                suffix = f" | user={username}" if username else ""
+                if auth_status == "authentication_failed":
+                    suffix += " | требуется корректный логин/пароль"
+                label = f"{host}:{port} | {dtype} | {source}{suffix}"
+                self.scan_results_combo.addItem(label, d)
+
+            self.scan_results_combo.setEnabled(self.scan_results_combo.count() > 1)
+            self.scan_results_combo.setCurrentIndex(1 if self.scan_results_combo.count() > 1 else 0)
+            self.scan_results_combo.blockSignals(False)
+            if self.scan_results_combo.currentIndex() > 0:
+                self._on_scanned_device_selected(self.scan_results_combo.currentIndex())
+            return
+
+        # Fallback, если скан вызван вне окна добавления
+        lines = [f"{d.get('ip')}:{d.get('port')} - {d.get('type')}" for d in devices]
+        QMessageBox.information(
+            self,
+            "Найденные устройства",
+            "Обнаружены устройства:\n\n" + "\n".join(lines),
+        )
+
+    def _on_scanned_device_selected(self, index: int):
+        if index <= 0:
+            return
+        if not hasattr(self, "scan_results_combo") or not self.scan_results_combo:
+            return
+
+        payload = self.scan_results_combo.itemData(index)
+        if not isinstance(payload, dict):
+            return
+
+        host = str(payload.get("host") or payload.get("ip") or "").strip()
+        port = str(payload.get("port") or "").strip()
+        dtype = str(payload.get("type") or "auto").strip()
+        username = str(payload.get("username") or "").strip()
+
+        if hasattr(self, "device_ip_input") and self.device_ip_input:
+            self.device_ip_input.setText(host)
+        if hasattr(self, "device_port_input") and self.device_port_input:
+            self.device_port_input.setText(port)
+        if hasattr(self, "device_type_combo") and self.device_type_combo:
+            allowed_types = {"android", "linux", "raspberry_pi", "auto"}
+            self.device_type_combo.setCurrentText(dtype if dtype in allowed_types else "auto")
+        if username and hasattr(self, "device_username_input") and self.device_username_input:
+            self.device_username_input.setText(username)
+
+        self.validate_device_connection_form()
+
 
 
 
@@ -3234,18 +3489,48 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "Ошибка", "Устройство не найдено в базе")
                 return
             
-            # Пробуем подключиться к устройству
-            # Здесь можно реализовать фактическую проверку связи
-            # Например, ping или попытку подключения через соответствующий менеджер
-            
-            # Для примера - просто обновляем время последней активности
-            from datetime import datetime
-            device.last_seen = datetime.now()
-            self.device_repo.save(device)
-            
-            progress.close()
-            QMessageBox.information(self, "Успех", f"Связь с устройством {device_ip} установлена\nВремя обновлено")
-            self.refresh_devices_table()
+            dtype = (getattr(device, "device_type", "") or "").strip().lower()
+            if not dtype and getattr(device, "type_device", None):
+                dtype = (getattr(device.type_device, "name", "") or "").strip().lower()
+            aliases = {"raspberry": "raspberry_pi", "rpi": "raspberry_pi", "ubuntu": "linux"}
+            dtype = aliases.get(dtype, dtype)
+            if dtype not in {"android", "linux", "raspberry_pi"}:
+                dtype = "auto"
+
+            username = (getattr(device, "username", "") or "").strip()
+            password = (getattr(device, "password", "") or "").strip()
+            port = getattr(device, "port", None) or 8022
+            if not username or not password:
+                progress.close()
+                QMessageBox.warning(
+                    self,
+                    "Недостаточно данных",
+                    "Для проверки соединения сохраните логин и пароль устройства в БД.",
+                )
+                return
+
+            connect_result = self.device_service.connect_device(
+                device_type=dtype,
+                host=device.ip_address,
+                username=username,
+                password=password,
+                port=int(port),
+            )
+
+            if connect_result.get("success"):
+                from datetime import datetime
+                device.last_seen = datetime.now()
+                self.device_repo.save(device)
+                progress.close()
+                QMessageBox.information(self, "Успех", f"Связь с устройством {device_ip} установлена\nВремя обновлено")
+                self.refresh_devices_table()
+            else:
+                progress.close()
+                QMessageBox.critical(
+                    self,
+                    "Ошибка подключения",
+                    f"Не удалось подключиться к устройству {device_ip}:\n{connect_result.get('error', 'Неизвестная ошибка')}",
+                )
             
         except Exception as e:
             progress.close()
@@ -3423,15 +3708,20 @@ class MainWindow(QMainWindow):
         
         layout = QHBoxLayout(panel)
         
-        # Фильтр по статусу
-        status_label = QLabel("Статус:")
-        status_label.setStyleSheet("color: #FFFFFF; margin-right: 5px;")
-        layout.addWidget(status_label)
+        # Сортировка
+        sort_label = QLabel("Сортировка:")
+        sort_label.setStyleSheet("color: #FFFFFF; margin-right: 5px;")
+        layout.addWidget(sort_label)
         
-        self.optimization_status_filter = QComboBox()
-        self.optimization_status_filter.addItems(["Все", "completed", "failed", "pending", "in_progress"])
-        self.optimization_status_filter.currentTextChanged.connect(self.refresh_optimization_reports_table)
-        layout.addWidget(self.optimization_status_filter)
+        self.optimization_sort_field = QComboBox()
+        self.optimization_sort_field.addItems(["ID", "Точность после", "Размер после (MB)"])
+        self.optimization_sort_field.currentTextChanged.connect(self.refresh_optimization_reports_table)
+        layout.addWidget(self.optimization_sort_field)
+
+        self.optimization_sort_order = QComboBox()
+        self.optimization_sort_order.addItems(["По убыванию", "По возрастанию"])
+        self.optimization_sort_order.currentTextChanged.connect(self.refresh_optimization_reports_table)
+        layout.addWidget(self.optimization_sort_order)
         
         layout.addStretch()
         
@@ -3487,11 +3777,11 @@ class MainWindow(QMainWindow):
     def create_optimization_reports_table(self):
         """Создать таблицу для отчетов оптимизации"""
         table = QTableWidget()
-        table.setColumnCount(8)
+        table.setColumnCount(10)
         table.setHorizontalHeaderLabels([
             "ID", "Оптимизированная модель ID", "Исходная модель ID", 
             "Точность до", "Точность после", 
-            "Потери до", "Потери после", "Статус"
+            "Потери до", "Потери после", "Размер до (MB)", "Размер после (MB)", "Статус"
         ])
         
         # Настройка таблицы
@@ -3510,13 +3800,15 @@ class MainWindow(QMainWindow):
         header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # ID
         header.setSectionResizeMode(1, QHeaderView.ResizeToContents)  # Оптимизированная модель ID
         header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # Исходная модель ID
-        header.setSectionResizeMode(7, QHeaderView.ResizeToContents)  # Статус
+        header.setSectionResizeMode(9, QHeaderView.ResizeToContents)  # Статус
         
         # Колонки с плавающей точкой растягиваются
         header.setSectionResizeMode(3, QHeaderView.Stretch)  # Точность до
         header.setSectionResizeMode(4, QHeaderView.Stretch)  # Точность после
         header.setSectionResizeMode(5, QHeaderView.Stretch)  # Потери до
         header.setSectionResizeMode(6, QHeaderView.Stretch)  # Потери после
+        header.setSectionResizeMode(7, QHeaderView.Stretch)  # Размер до
+        header.setSectionResizeMode(8, QHeaderView.Stretch)  # Размер после
         
         # ИЛИ ПРОСТОЙ ВАРИАНТ: Все колонки по содержимому, но таблица растягивается
         # for i in range(table.columnCount()):
@@ -3563,16 +3855,29 @@ class MainWindow(QMainWindow):
             # Получаем все отчеты оптимизации
             all_records = self.optimization_record_repo.get_all()
             
-            # Применяем фильтры
-            filtered_records = []
-            status_filter = self.optimization_status_filter.currentText()
-            
-            for record in all_records:
-                # Фильтр по статусу
-                if status_filter != "Все" and record.status != status_filter:
-                    continue
-                
-                filtered_records.append(record)
+            # Применяем сортировку
+            filtered_records = list(all_records)
+            sort_field = self.optimization_sort_field.currentText()
+            reverse_order = self.optimization_sort_order.currentText() == "По убыванию"
+
+            optimized_size_cache = {}
+            if sort_field == "ID":
+                filtered_records.sort(key=lambda r: r.id or 0, reverse=reverse_order)
+            elif sort_field == "Точность после":
+                filtered_records.sort(key=lambda r: r.accuracy_after if r.accuracy_after is not None else -1.0, reverse=reverse_order)
+            elif sort_field == "Размер после (MB)":
+                def _optimized_size(record):
+                    if not record.optimized_model_id:
+                        return -1.0
+                    if record.optimized_model_id not in optimized_size_cache:
+                        optimized_model = self.optimized_model_repo.get_by_id(record.optimized_model_id)
+                        optimized_size_cache[record.optimized_model_id] = optimized_model.size if optimized_model and optimized_model.size is not None else -1.0
+                    return optimized_size_cache[record.optimized_model_id]
+
+                filtered_records.sort(
+                    key=_optimized_size,
+                    reverse=reverse_order
+                )
             
             # Устанавливаем количество строк
             self.optimization_reports_table.setRowCount(len(filtered_records))
@@ -3619,11 +3924,43 @@ class MainWindow(QMainWindow):
                 loss_after_item = QTableWidgetItem(loss_after)
                 loss_after_item.setTextAlignment(Qt.AlignCenter)
                 self.optimization_reports_table.setItem(row, 6, loss_after_item)
+
+                original_model_size = "N/A"
+                optimized_model_size = "N/A"
+                try:
+                    if record.original_model_id:
+                        original_model = self.model_repo.get_by_id(record.original_model_id)
+                        if original_model and original_model.size is not None:
+                            original_model_size = f"{original_model.size:.2f}"
+                    if record.optimized_model_id:
+                        optimized_model = self.optimized_model_repo.get_by_id(record.optimized_model_id)
+                        if optimized_model and optimized_model.size is not None:
+                            optimized_model_size = f"{optimized_model.size:.2f}"
+                except Exception:
+                    pass
+
+                size_before_item = QTableWidgetItem(original_model_size)
+                size_before_item.setTextAlignment(Qt.AlignCenter)
+                self.optimization_reports_table.setItem(row, 7, size_before_item)
+
+                size_after_item = QTableWidgetItem(optimized_model_size)
+                size_after_item.setTextAlignment(Qt.AlignCenter)
+                self.optimization_reports_table.setItem(row, 8, size_after_item)
                 
                 # Статус
                 status_item = QTableWidgetItem(record.status if record.status else "N/A")
                 status_item.setTextAlignment(Qt.AlignCenter)
-                self.optimization_reports_table.setItem(row, 7, status_item)
+                strategy_hint = "Стратегия: N/A"
+                try:
+                    if record.optimized_model_id:
+                        optimized_model = self.optimized_model_repo.get_by_id(record.optimized_model_id)
+                        if optimized_model and optimized_model.optimization_params:
+                            strategy = json.loads(optimized_model.optimization_params)
+                            strategy_hint = self._format_strategy_text(strategy)
+                except Exception:
+                    pass
+                status_item.setToolTip(strategy_hint)
+                self.optimization_reports_table.setItem(row, 9, status_item)
             
             # Обновляем статистику
             self.optimization_reports_stats_label.setText(f"Всего отчетов оптимизации: {len(filtered_records)}")
@@ -3680,12 +4017,39 @@ class MainWindow(QMainWindow):
             return
         
         menu = QMenu()
+        show_strategy_action = QAction("Показать стратегию", self)
+        show_strategy_action.triggered.connect(self.show_selected_optimization_strategy)
+        menu.addAction(show_strategy_action)
         
         delete_action = QAction("Удалить", self)
         delete_action.triggered.connect(self.delete_selected_optimization_report)
         menu.addAction(delete_action)
         
         menu.exec_(self.optimization_reports_table.viewport().mapToGlobal(position))
+
+    def show_selected_optimization_strategy(self):
+        selected_rows = self.optimization_reports_table.selectionModel().selectedRows()
+        if not selected_rows:
+            QMessageBox.warning(self, "Внимание", "Выберите отчет оптимизации")
+            return
+
+        row = selected_rows[0].row()
+        report_id = int(self.optimization_reports_table.item(row, 0).text())
+        report = self.optimization_record_repo.get_by_id(report_id)
+        if not report:
+            QMessageBox.warning(self, "Ошибка", "Отчет не найден")
+            return
+
+        strategy = {}
+        if report.optimized_model_id:
+            optimized_model = self.optimized_model_repo.get_by_id(report.optimized_model_id)
+            if optimized_model and optimized_model.optimization_params:
+                try:
+                    strategy = json.loads(optimized_model.optimization_params)
+                except Exception:
+                    strategy = {}
+
+        QMessageBox.information(self, f"Стратегия отчета #{report_id}", self._format_strategy_text(strategy))
 
 
 
@@ -3750,15 +4114,20 @@ class MainWindow(QMainWindow):
         
         layout = QHBoxLayout(panel)
         
-        # Фильтр по статусу
-        status_label = QLabel("Статус:")
-        status_label.setStyleSheet("color: #FFFFFF; margin-right: 5px;")
-        layout.addWidget(status_label)
+        # Сортировка
+        sort_label = QLabel("Сортировка:")
+        sort_label.setStyleSheet("color: #FFFFFF; margin-right: 5px;")
+        layout.addWidget(sort_label)
         
-        self.deployment_status_filter = QComboBox()
-        self.deployment_status_filter.addItems(["Все", "success", "failed", "pending", "in_progress"])
-        self.deployment_status_filter.currentTextChanged.connect(self.refresh_deployment_reports_table)
-        layout.addWidget(self.deployment_status_filter)
+        self.deployment_sort_field = QComboBox()
+        self.deployment_sort_field.addItems(["Дата развертывания", "ID", "Устройство ID"])
+        self.deployment_sort_field.currentTextChanged.connect(self.refresh_deployment_reports_table)
+        layout.addWidget(self.deployment_sort_field)
+
+        self.deployment_sort_order = QComboBox()
+        self.deployment_sort_order.addItems(["По убыванию", "По возрастанию"])
+        self.deployment_sort_order.currentTextChanged.connect(self.refresh_deployment_reports_table)
+        layout.addWidget(self.deployment_sort_order)
         
         layout.addStretch()
         
@@ -3842,16 +4211,20 @@ class MainWindow(QMainWindow):
             # Получаем все записи развертывания
             all_deployments = self.deployment_repo.get_all()
             
-            # Применяем фильтры
-            filtered_deployments = []
-            status_filter = self.deployment_status_filter.currentText()
-            
-            for deployment in all_deployments:
-                # Фильтр по статусу
-                if status_filter != "Все" and deployment.status != status_filter:
-                    continue
-                
-                filtered_deployments.append(deployment)
+            # Применяем сортировку
+            filtered_deployments = list(all_deployments)
+            sort_field = self.deployment_sort_field.currentText()
+            reverse_order = self.deployment_sort_order.currentText() == "По убыванию"
+
+            if sort_field == "Дата развертывания":
+                filtered_deployments.sort(
+                    key=lambda d: d.deployment_date.timestamp() if d.deployment_date else 0,
+                    reverse=reverse_order
+                )
+            elif sort_field == "ID":
+                filtered_deployments.sort(key=lambda d: d.id or 0, reverse=reverse_order)
+            elif sort_field == "Устройство ID":
+                filtered_deployments.sort(key=lambda d: d.device_id or 0, reverse=reverse_order)
             
             # Устанавливаем количество строк
             self.deployment_reports_table.setRowCount(len(filtered_deployments))

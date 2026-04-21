@@ -2,11 +2,11 @@ import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 from .seeds import seed_initial_data
 from .base import Base
-from core.database.models import Device, DeviceType,NeuralModel, OptimizedModel, OptimizationRecord, DeploymentRecord, ModelFormat
+from core.database.models import Device, DeviceType,NeuralModel, OptimizedModel, OptimizationRecord, DeploymentRecord, ModelFormat, ModelType
 username = "postgres"
 userpassword = "1111"
 db_url_postgre = f'postgresql://{username}:{userpassword}@localhost:5432/kyrsovaya_db'
@@ -20,6 +20,53 @@ def create_db_engine(db_url = db_url_postgre):
 def create_tables(engine):
     
     Base.metadata.create_all(engine)
+
+
+def ensure_schema_compatibility(engine):
+    inspector = inspect(engine)
+    if not inspector.has_table("device"):
+        return
+
+    existing_columns = {col["name"] for col in inspector.get_columns("device")}
+    statements = []
+    if "device_type" not in existing_columns:
+        statements.append("ALTER TABLE device ADD COLUMN device_type VARCHAR(64) NOT NULL DEFAULT 'android'")
+    if "username" not in existing_columns:
+        statements.append("ALTER TABLE device ADD COLUMN username VARCHAR(128)")
+    if "password" not in existing_columns:
+        statements.append("ALTER TABLE device ADD COLUMN password VARCHAR(255)")
+    if "port" not in existing_columns:
+        statements.append("ALTER TABLE device ADD COLUMN port INTEGER")
+    if "cpu_frequency" not in existing_columns:
+        statements.append("ALTER TABLE device ADD COLUMN cpu_frequency INTEGER")
+    if "gpu_memory" not in existing_columns:
+        statements.append("ALTER TABLE device ADD COLUMN gpu_memory INTEGER")
+
+    with engine.begin() as conn:
+        for stmt in statements:
+            conn.execute(text(stmt))
+
+def ensure_lookup_compatibility(engine):
+    required_formats = ["onnx", "pb", "h5", "hdf5", "keras", "tflite", "lite", "pt", "pth"]
+    required_types = ["general", "cv", "nlp", "audio"]
+
+    with engine.begin() as conn:
+        for fmt in required_formats:
+            conn.execute(
+                text(
+                    "INSERT INTO model_format(name) "
+                    "SELECT :name WHERE NOT EXISTS (SELECT 1 FROM model_format WHERE lower(name) = lower(:name))"
+                ),
+                {"name": fmt},
+            )
+        for model_type in required_types:
+            conn.execute(
+                text(
+                    "INSERT INTO model_type(name) "
+                    "SELECT :name WHERE NOT EXISTS (SELECT 1 FROM model_type WHERE lower(name) = lower(:name))"
+                ),
+                {"name": model_type},
+            )
 
 def get_session(engine):
     Session = sessionmaker(bind=engine)
@@ -59,6 +106,8 @@ def initialize_database(type="postgre"):
         create_database_if_not_exists()
     engine = create_db_engine()
     create_tables(engine)
+    ensure_schema_compatibility(engine)
+    ensure_lookup_compatibility(engine)
     print("Database tables created successfully!")
     print("Created tables: ") 
     for table_name in Base.metadata.tables.keys():

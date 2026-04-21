@@ -16,15 +16,15 @@ class ModelRepository:
                     ModelFormat.name.label('format_name')  
                  )
                  .select_from(NeuralModel)
-                 .join(ModelType, NeuralModel.type_id == ModelType.id) 
-                 .join(ModelFormat, NeuralModel.format_id == ModelFormat.id)      
+                 .outerjoin(ModelType, NeuralModel.type_id == ModelType.id) 
+                 .outerjoin(ModelFormat, NeuralModel.format_id == ModelFormat.id)      
                  .filter(NeuralModel.id == model_id)
                  .first())
         
         if result:
             return {
-                'model_type': result.model_type_name.lower(),
-                'model_format': result.format_name.lower()
+                'model_type': (result.model_type_name or "general").lower(),
+                'model_format': (result.format_name or "").lower()
             }
         return None
     
@@ -46,31 +46,38 @@ class ModelRepository:
         result = self.session.query(ModelFormat.name).all()
         return [row[0] for row in result] if result else []
     
-    def create_model(self, name: str, original_path: str, model_type_name: str, 
-                   format_name: str, size: float = None) -> NeuralModel:
-        
-        model_type = self.session.query(ModelType).filter(
-            ModelType.name == model_type_name
-        ).first()
-        if not model_type:
-            raise ValueError(f"Неизвестный тип модели: {model_type_name}")
-        
-        model_format = self.session.query(ModelFormat).filter(
-            ModelFormat.name == format_name
-        ).first()
-        if not model_format:
-            raise ValueError(f"Неизвестный формат: {format_name}")
-        
-        model = NeuralModel(
-            name=name,
-            original_path=original_path,
-            type_id=model_type.id,
-            format_id=model_format.id,
-            size=size
-        )
-        
-        self.save(model)
-        return model
+    def create_model(self, name: str, original_path: str, format_name: str, model_type_name: str = "general", size: float = None) -> NeuralModel:
+        try:
+            type_name = (model_type_name or "general").strip().lower()
+            model_type = self.session.query(ModelType).filter(
+                ModelType.name.ilike(type_name)
+            ).first()
+            if not model_type:
+                model_type = self.session.query(ModelType).filter(ModelType.name.ilike("general")).first()
+            if not model_type:
+                model_type = ModelType(name="general")
+                self.session.add(model_type)
+                self.session.flush()
+            
+            model_format = self.session.query(ModelFormat).filter(
+                ModelFormat.name.ilike(format_name)
+            ).first()
+            if not model_format:
+                raise ValueError(f"Неизвестный формат: {format_name}")
+            
+            model = NeuralModel(
+                name=name,
+                original_path=original_path,
+                type_id=model_type.id,
+                format_id=model_format.id,
+                size=size
+            )
+            
+            self.save(model)
+            return model
+        except Exception:
+            self.session.rollback()
+            raise
     
     def get_format_by_id(self, model_id):
         result = (self.session.query( 

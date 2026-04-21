@@ -5,7 +5,6 @@ import json
 from typing import Dict, Optional
 import logging
 import os
-from scp import SCPClient, SCPException
 import subprocess
 from .base_device_manager import BaseDeviceManager
 
@@ -119,7 +118,9 @@ class AndroidDeviceManager(BaseDeviceManager):
         info = {
             'last_seen': time.strftime('%Y-%m-%d %H:%M:%S'),
             'type_device': "android",
-            "ip_address": self.ip
+            "ip_address": self.ip,
+            "cpu_frequency": None,
+            "gpu_memory": None,
         }
         
         commands = {
@@ -141,6 +142,10 @@ class AndroidDeviceManager(BaseDeviceManager):
             time.sleep(0.1)  
         
         return info
+
+    def install_dependencies(self) -> Dict:
+        cmd = "pkg update -y && pkg install -y python python-numpy && pip install onnxruntime tflite-runtime"
+        return self.execute_command(cmd, timeout=300)
     
     def deploy_file(self, local_path: str, remote_path: str = "~/") -> Dict:
         if not self.connection:
@@ -161,8 +166,8 @@ class AndroidDeviceManager(BaseDeviceManager):
                 mkdir_cmd = f'mkdir -p "{remote_dir}"'
                 self.execute_command(mkdir_cmd)
             
-            with SCPClient(self.connection.get_transport()) as scp:
-                scp.put(local_path, remote_path_fixed)
+            with self.connection.open_sftp() as sftp:
+                sftp.put(local_path, remote_path_fixed)
             
             check_cmd = f'ls -la "{remote_path_fixed}"'
             result = self.execute_command(check_cmd)
@@ -181,7 +186,7 @@ class AndroidDeviceManager(BaseDeviceManager):
                 }
                 
         except Exception as e:
-            return {'success': False, 'error': f'SCP ошибка: {str(e)}'}
+            return {'success': False, 'error': f'SFTP ошибка: {str(e)}'}
         
 
 

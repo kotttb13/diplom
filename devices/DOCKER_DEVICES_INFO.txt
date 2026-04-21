@@ -1,0 +1,53 @@
+Docker test devices for Neuro-Optimizer
+======================================
+
+This file contains quick connection data and characteristics
+for the local dockerized devices used by the app.
+
+1) Raspberry-like device
+------------------------
+- Container name: ssh_raspberry
+- Host/IP (from host machine): localhost or 127.0.0.1
+- SSH port: 2222
+- Username: pi
+- Password: raspberry
+- Device type in app: raspberry_pi
+- Simulated board profile: Raspberry Pi 4 Model B (4GB)
+- CPU: 4 cores, ARM Cortex-A72 class, aarch64, up to ~1.8 GHz
+- GPU: VideoCore VI (simulated), GPU memory ~512 MB
+- RAM: ~4 GB (LPDDR4 profile)
+- Storage shown in app: capped to realistic SD-card-like value (default 32 GB)
+- Source image definition: ../raspberry/Dockerfile
+
+2) Ubuntu Linux device
+----------------------
+- Container name: ssh_ubuntu
+- Host/IP (from host machine): localhost or 127.0.0.1
+- SSH port: 2223
+- Username: root
+- Password: raspberry
+- Device type in app: linux
+- Architecture (expected): x86_64
+- Source image definition: ../ubuntu/Dockerfile
+
+3) Android-like device
+----------------------
+- Container name: ssh_android
+- Host/IP (from host machine): localhost or 127.0.0.1
+- SSH port: 8022
+- Username: root
+- Password: raspberry
+- Device type in app: android
+- Android release emulation: getprop ro.build.version.release -> 11
+- Source image definition: ../android/Dockerfile
+
+Alternative host values
+-----------------------
+- host.docker.internal
+- your LAN IP of the host machine
+
+How to run
+----------
+- docker-compose up -d --build
+- docker ps
+

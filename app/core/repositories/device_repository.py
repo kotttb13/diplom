@@ -10,8 +10,12 @@ class DeviceRepository:
         self.session = session
     
     def save(self, device: Device) -> None:
-        self.session.add(device)
-        self.session.commit()
+        try:
+            self.session.add(device)
+            self.session.commit()
+        except Exception:
+            self.session.rollback()
+            raise
     
     def get_by_id(self, device_id: int) -> Optional[Device]:
         return self.session.query(Device).filter(Device.id == device_id).first()
@@ -34,11 +38,34 @@ class DeviceRepository:
             Device.last_seen >= five_min_ago
         ).all()
 
-    def get_device_type_id (self, device_type):
-        device_type_obj = self.session.query(DeviceType).filter(DeviceType.name == device_type).first()
+    def get_device_type_id(self, device_type: str) -> Optional[int]:
+        normalized = (device_type or "").strip().lower()
+        if not normalized:
+            return None
+
+        aliases = {
+            "raspberry": "raspberry_pi",
+            "rpi": "raspberry_pi",
+            "ubuntu": "linux",
+            "android_like": "android",
+        }
+        normalized = aliases.get(normalized, normalized)
+
+        device_type_obj = self.session.query(DeviceType).filter(DeviceType.name == normalized).first()
         if device_type_obj:
             return device_type_obj.id
-        return -1
+        return None
+
+    def get_or_create_device_type_id(self, device_type: str) -> int:
+        existing_id = self.get_device_type_id(device_type)
+        if existing_id is not None:
+            return existing_id
+
+        normalized = (device_type or "linux").strip().lower() or "linux"
+        device_type_obj = DeviceType(name=normalized)
+        self.session.add(device_type_obj)
+        self.session.flush()
+        return device_type_obj.id
 
 
 
@@ -47,16 +74,12 @@ class DeviceRepository:
         self.session.commit()
 
     def create_device(self, ip_address: str, architecture: str, ram_gb: float, 
-                cpu_core: int, device_type: str, memory_gb: float = None, 
+                cpu_core: int, device_type: str, memory_gb: float = None,
+                username: str = None, password: str = None, port: int = None,
                 status: str = "active") -> Device:  # Изменили type на device_type
 
         try:
-            device_type_id = self.get_device_type_id(device_type)  # Используем device_type
-            if device_type_id == -1:
-                device_type_obj = DeviceType(name=device_type)  # Используем device_type
-                self.session.add(device_type_obj)
-                self.session.flush()  
-                device_type_id = device_type_obj.id
+            device_type_id = self.get_or_create_device_type_id(device_type)
             
             device = Device(
                 ip_address=ip_address,
@@ -64,6 +87,10 @@ class DeviceRepository:
                 ram_gb=ram_gb,
                 cpu_core=cpu_core,
                 memory_gb=memory_gb,
+                device_type=device_type,
+                username=username,
+                password=password,
+                port=port,
                 type_id=device_type_id, 
                 last_seen=datetime.now()
             )

@@ -18,3 +18,14 @@ class OptimizerFactory:
                 return optimizer
                 
         return None
+
+    @staticmethod
+    def get_optimizer_by_format(model_format: str) -> Optional[BaseOptimizer]:
+        optimizers = [
+            TensorFlowOptimizer(),
+            ONNXOptimizer()
+        ]
+        for optimizer in optimizers:
+            if optimizer.can_optimize(model_format):
+                return optimizer
+        return None
