@@ -74,15 +74,15 @@ class NetworkScanner:
         try:
             return sock.connect_ex((host, port)) == 0
         except OSError:
-            # Hostname may be unresolved on current runtime (e.g. docker service names on Windows host)
+            # Имя хоста может не резолвиться.
             return False
         finally:
             sock.close()
 
     def _docker_scan_targets(self) -> List[Tuple[str, int]]:
-        # For host runtime use localhost aliases by default.
-        # Docker service names should be enabled explicitly via DOCKER_SCAN_TARGETS
-        # when the app itself runs inside docker-compose network.
+        # На хосте локальные адреса.
+        # Имена сервисов задаём явно.
+        # Внутри контейнерной сети.
         raw_hosts = os.getenv("DOCKER_SCAN_TARGETS", "127.0.0.1,localhost,host.docker.internal")
         hosts = [host.strip() for host in raw_hosts.split(",") if host.strip()]
         raw_ports = os.getenv("DOCKER_SSH_PORTS", "2222,2223,8022,22")
@@ -125,7 +125,7 @@ class NetworkScanner:
             ]
         )
 
-        # Keep order but remove duplicates
+        # Сохраняем порядок без дублей.
         unique: List[Tuple[Optional[str], Optional[str]]] = []
         seen = set()
         for candidate in candidates:
@@ -146,7 +146,7 @@ class NetworkScanner:
         result = {"ip": host, "host": host, "port": target_port, "type": "unknown"}
         docker_hosts = {"127.0.0.1", "localhost", "host.docker.internal", "raspberry", "ubuntu", "android"}
         if host in docker_hosts:
-            # Fast hints for docker-mapped devices even before auth succeeds.
+            # Быстрые подсказки типа устройства.
             if target_port == 2222:
                 result.update({"type": "raspberry_pi", "username": "pi", "type_guess": True})
             elif target_port == 2223:

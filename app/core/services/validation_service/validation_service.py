@@ -7,10 +7,12 @@ import time
 from core.database.models import NeuralModel, OptimizedModel, OptimizationRecord
 
 class ModelValidationService:
+    # Инициализация сервиса валидации.
     def __init__(self, optimization_record_repository ):
         self.optimization_record_repo = optimization_record_repository
         self.logger = logging.getLogger(__name__)
     
+    # Валидация одной модели.
     def validate_single_model(self,
                             model_path: str,
                             x_test: np.ndarray,
@@ -30,6 +32,7 @@ class ModelValidationService:
             self.logger.error(f"Ошибка валидации {model_format} модели: {e}")
             return {'error': str(e), 'loss': None, 'accuracy': None}
     
+    # Проверка базовой модели.
     def _validate_tensorflow_model(self,
                                  model_path: str,
                                  x_test: np.ndarray,
@@ -45,6 +48,7 @@ class ModelValidationService:
             'format': 'tensorflow'
         }
     
+    # Проверка облегченной модели.
     def _validate_tflite_model(self,
                              model_path: str,
                              x_test: np.ndarray,
@@ -92,6 +96,7 @@ class ModelValidationService:
             'format': 'tflite'
         }
     
+    # Проверка экспортной модели.
     def _validate_onnx_model(self,
                            model_path: str,
                            x_test: np.ndarray,
@@ -135,6 +140,7 @@ class ModelValidationService:
             'format': 'onnx'
         }
     
+    # Сравнение пары моделей.
     def validate_model_pair(self,
                           original_model_path: str,
                           optimized_model_path: str,
@@ -152,7 +158,7 @@ class ModelValidationService:
                 optimized_model_path, x_test, y_test, optimized_format
             )
             
-            # If either side failed (returns error/None metrics), report as validation failure.
+            # При сбое метрик вернём ошибку.
             for label, m in (("original", original_metrics), ("optimized", optimized_metrics)):
                 if m.get("error") or m.get("accuracy") is None or m.get("loss") is None:
                     err = m.get("error") or "Метрики недоступны (accuracy/loss = None)"
@@ -173,12 +179,14 @@ class ModelValidationService:
     
 
     
+    # Размер файла в МБ.
     def _get_file_size_mb(self, file_path: str) -> float:
         import os
         return os.path.getsize(file_path) / (1024 * 1024)
     
 
 
+    # Сохранение итога оптимизации.
     def _save_optimization_result(self,
                                 original_model_id: int,
                                 optimized_model_id: int,

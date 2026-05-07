@@ -59,6 +59,6 @@ echo ========================================
 echo.
 echo Инструкция для запуска:
 echo 1. Активируйте окружение: .venv\Scripts\activate.bat
-echo 2. Запустите приложение: python main.py
+echo 2. Запустите приложение: python  app/main.py
 echo.
 Pause

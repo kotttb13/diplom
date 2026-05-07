@@ -112,7 +112,7 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
-        # Главный layout
+        # Главная компоновка окна
         self.main_layout = QVBoxLayout(central_widget)
         self.main_layout.setContentsMargins(20, 20, 20, 20)
         self.main_layout.setSpacing(10)
@@ -777,7 +777,7 @@ class MainWindow(QMainWindow):
         dialog.setMinimumWidth(600)
         dialog.setMinimumHeight(550)
         
-        # Основной layout
+        # Основная компоновка формы
         layout = QVBoxLayout(dialog)
         
         # Информация о добавлении устройства
@@ -815,7 +815,7 @@ class MainWindow(QMainWindow):
         
         connect_layout = QFormLayout()
         
-        # IP адрес
+        # Адрес устройства
         self.device_ip_input = QLineEdit()
         self.device_ip_input.setPlaceholderText("192.168.0.169")
         self.device_ip_input.textChanged.connect(self.validate_device_connection_form)
@@ -877,19 +877,19 @@ class MainWindow(QMainWindow):
         self.device_arch_input.textChanged.connect(self.validate_device_manual_form)
         manual_layout.addRow("Архитектура:", self.device_arch_input)
         
-        # Свободное ПЗУ (GB)
+        # Свободное ПЗУ
         self.device_memory_input = QLineEdit()
         self.device_memory_input.setPlaceholderText("32")
         self.device_memory_input.textChanged.connect(self.validate_device_manual_form)
         manual_layout.addRow("Свободное ПЗУ (GB):", self.device_memory_input)
         
-        # RAM (GB)
+        # Оперативная память
         self.device_ram_input = QLineEdit()
         self.device_ram_input.setPlaceholderText("4")
         self.device_ram_input.textChanged.connect(self.validate_device_manual_form)
         manual_layout.addRow("Оперативная память (GB):", self.device_ram_input)
         
-        # CPU cores
+        # Количество ядер процессора
         self.device_cpu_input = QLineEdit()
         self.device_cpu_input.setPlaceholderText("4")
         self.device_cpu_input.textChanged.connect(self.validate_device_manual_form)
@@ -1095,7 +1095,7 @@ class MainWindow(QMainWindow):
             self.device_add_button.setEnabled(False)
             return
         
-        # Проверяем адрес устройства: IPv4 или hostname
+        # Проверяем адрес устройства
         ip_parts = ip.split('.')
         is_ipv4 = len(ip_parts) == 4 and all(part.isdigit() and 0 <= int(part) <= 255 for part in ip_parts)
         is_hostname = all(ch.isalnum() or ch in "-._" for ch in ip) and ip[0].isalnum()
@@ -1174,7 +1174,7 @@ class MainWindow(QMainWindow):
             print(f"Port: {port}")
             print(f"Type: {device_type}")
             
-            # Проверяем, существует ли уже устройство с таким IP
+            # Проверяем дубликат адреса
             existing_device = self.device_repo.get_by_ip(ip_address)
             print(f"Существующее устройство: {'Да' if existing_device else 'Нет'}")
             if existing_device:
@@ -1206,7 +1206,7 @@ class MainWindow(QMainWindow):
                     
                     print("Попытка подключения к существующему устройству...")
                     
-                    # Безопасный вызов connect_device
+                    # Безопасный вызов подключения
                     try:
                         result = self.device_service.connect_device(device_type, **config)
                         print(f"Результат connect_device: {result}")
@@ -1268,7 +1268,7 @@ class MainWindow(QMainWindow):
                                     if 'architecture' in info and info.get('architecture'):
                                         existing_device.architecture = str(info.get('architecture')).strip()
                                     
-                                    # Обновляем last_seen
+                                    # Обновляем время активности
                                     existing_device.last_seen = datetime.now()
                                     
                                     self.session.commit()
@@ -1379,7 +1379,7 @@ class MainWindow(QMainWindow):
                         if memory_gb_str:
                             memory_gb = float(memory_gb_str)
                             
-                            # Обновляем только memory_gb и last_seen
+                            # Обновляем память и время
                             existing_device.memory_gb = memory_gb
                             existing_device.last_seen = datetime.now()
                             self.session.commit()
@@ -1400,7 +1400,7 @@ class MainWindow(QMainWindow):
                             dialog.accept()
                             return
                         else:
-                            # Только обновляем время если memory_gb не введен
+                            # Обновляем только время
                             existing_device.last_seen = datetime.now()
                             self.session.commit()
                             
@@ -1760,7 +1760,7 @@ class MainWindow(QMainWindow):
         
         data_layout = QFormLayout()
         
-        # Поле для X данных
+        # Поле для входных данных
         x_data_layout = QHBoxLayout()
         x_data_input = QLineEdit()  # Локальная переменная
         x_data_input.setPlaceholderText("Выберите файл X_test.npy")
@@ -1783,7 +1783,7 @@ class MainWindow(QMainWindow):
         x_data_layout.addWidget(x_browse_btn)
         data_layout.addRow("X_test данные:", x_data_layout)
         
-        # Поле для Y данных
+        # Поле для целевых данных
         y_data_layout = QHBoxLayout()
         y_data_input = QLineEdit()  # Локальная переменная
         y_data_input.setPlaceholderText("Выберите файл y_test.npy")
@@ -2259,7 +2259,7 @@ class MainWindow(QMainWindow):
         
         connection_layout = QFormLayout()
         
-        # Поле для IP (с предзаполнением)
+        # Поле адреса устройства
         ip_layout = QHBoxLayout()
         ip_input = QLineEdit()
         ip_input.setPlaceholderText("IP адрес устройства")
@@ -2355,7 +2355,7 @@ class MainWindow(QMainWindow):
         deploy_btn.setEnabled(False)
         
         # Функция обновления информации о модели
-        def update_optimized_model_info():
+        def update_optimized_model_info(*_):
             index = optimized_model_combo.currentIndex()
             if index > 0:
                 model_id = optimized_model_combo.itemData(index)
@@ -2377,7 +2377,7 @@ class MainWindow(QMainWindow):
             validate_form()
         
         # Функция обновления информации об устройстве
-        def update_device_info():
+        def update_device_info(*_):
             index = device_combo.currentIndex()
             if index > 0:
                 device_id = device_combo.itemData(index)
@@ -2387,7 +2387,7 @@ class MainWindow(QMainWindow):
                         info = f"Архитектура: {device.architecture}, CPU: {device.cpu_core} ядер, ПЗУ: {device.memory_gb} GB"
                         device_info_label.setText(info)
                         
-                        # Автозаполнение IP если поле пустое
+                        # Автозаполнение адреса устройства
                         if not ip_input.text() and device.ip_address:
                             ip_input.setText(device.ip_address)
 
@@ -2406,7 +2406,7 @@ class MainWindow(QMainWindow):
             validate_form()
         
         # Функция валидации формы
-        def validate_form():
+        def validate_form(*_):
             # Проверяем выбранную модель
             model_selected = optimized_model_combo.currentIndex() > 0
             
@@ -2835,7 +2835,7 @@ class MainWindow(QMainWindow):
             
             # Заполняем таблицу
             for row, model in enumerate(models):
-                # ID
+                # Идентификатор записи
                 id_item = QTableWidgetItem(str(model.id))
                 id_item.setTextAlignment(Qt.AlignCenter)
                 self.models_table.setItem(row, 0, id_item)
@@ -3123,11 +3123,6 @@ class MainWindow(QMainWindow):
         
         layout = QHBoxLayout(panel)
         
-        # Кнопка проверки связи
-        ping_btn = WarframeButton("ПРОВЕРИТЬ СВЯЗЬ")
-        ping_btn.setMinimumHeight(40)
-        ping_btn.clicked.connect(self.ping_selected_device)
-        layout.addWidget(ping_btn)
         
         # Кнопка удаления
         delete_btn = WarframeButton("УДАЛИТЬ")
@@ -3196,12 +3191,12 @@ class MainWindow(QMainWindow):
             
             # Заполняем таблицу
             for row, device in enumerate(devices):
-                # ID
+                # Идентификатор записи
                 id_item = QTableWidgetItem(str(device.id))
                 id_item.setTextAlignment(Qt.AlignCenter)
                 self.devices_table.setItem(row, 0, id_item)
                 
-                # IP Адрес
+                # Адрес устройства
                 ip_item = QTableWidgetItem(device.ip_address)
                 self.devices_table.setItem(row, 1, ip_item)
                 
@@ -3332,7 +3327,7 @@ class MainWindow(QMainWindow):
                 self._on_scanned_device_selected(self.scan_results_combo.currentIndex())
             return
 
-        # Fallback, если скан вызван вне окна добавления
+        # Резерв при внешнем вызове
         lines = [f"{d.get('ip')}:{d.get('port')} - {d.get('type')}" for d in devices]
         QMessageBox.information(
             self,
@@ -3387,7 +3382,7 @@ class MainWindow(QMainWindow):
         type_combo.addItems(["android", "linux", "windows"])  # Можно расширить
         form_layout.addRow("Тип устройства:", type_combo)
         
-        # IP адрес
+        # Адрес устройства
         ip_input = QLineEdit()
         ip_input.setPlaceholderText("")
         form_layout.addRow("IP адрес:", ip_input)
@@ -3668,7 +3663,7 @@ class MainWindow(QMainWindow):
         """Создать страницу с отчетами оптимизации"""
         page = QWidget()
         
-        # Создаем основной layout
+        # Создаем основную компоновку
         main_layout = QVBoxLayout(page)
         main_layout.setContentsMargins(5, 5, 5, 5)
         main_layout.setSpacing(5)
@@ -3811,8 +3806,8 @@ class MainWindow(QMainWindow):
         header.setSectionResizeMode(8, QHeaderView.Stretch)  # Размер после
         
         # ИЛИ ПРОСТОЙ ВАРИАНТ: Все колонки по содержимому, но таблица растягивается
-        # for i in range(table.columnCount()):
-        #     header.setSectionResizeMode(i, QHeaderView.ResizeToContents)
+        # Альтернативная настройка ширины:
+        # цикл по всем колонкам.
         
         # Стилизация таблицы
         table.setStyleSheet("""
@@ -3882,20 +3877,20 @@ class MainWindow(QMainWindow):
             # Устанавливаем количество строк
             self.optimization_reports_table.setRowCount(len(filtered_records))
             
-            # Заполняем таблицу данными из OptimizationRecord
+            # Заполняем таблицу отчётом
             for row, record in enumerate(filtered_records):
-                # ID
+                # Идентификатор записи
                 id_item = QTableWidgetItem(str(record.id))
                 id_item.setTextAlignment(Qt.AlignCenter)
                 self.optimization_reports_table.setItem(row, 0, id_item)
                 
-                # Оптимизированная модель ID
+                # Идентификатор оптимизированной модели
                 optimized_model_id = str(record.optimized_model_id) if record.optimized_model_id else "N/A"
                 optimized_item = QTableWidgetItem(optimized_model_id)
                 optimized_item.setTextAlignment(Qt.AlignCenter)
                 self.optimization_reports_table.setItem(row, 1, optimized_item)
                 
-                # Исходная модель ID
+                # Идентификатор исходной модели
                 original_model_id = str(record.original_model_id) if record.original_model_id else "N/A"
                 original_item = QTableWidgetItem(original_model_id)
                 original_item.setTextAlignment(Qt.AlignCenter)
@@ -4229,20 +4224,20 @@ class MainWindow(QMainWindow):
             # Устанавливаем количество строк
             self.deployment_reports_table.setRowCount(len(filtered_deployments))
             
-            # Заполняем таблицу данными из DeploymentRecord
+            # Заполняем таблицу развертывания
             for row, deployment in enumerate(filtered_deployments):
-                # ID
+                # Идентификатор записи
                 id_item = QTableWidgetItem(str(deployment.id))
                 id_item.setTextAlignment(Qt.AlignCenter)
                 self.deployment_reports_table.setItem(row, 0, id_item)
                 
-                # Оптимизированная модель ID
+                # Идентификатор оптимизированной модели
                 optimized_model_id = str(deployment.optimized_model_id) if deployment.optimized_model_id else "N/A"
                 model_item = QTableWidgetItem(optimized_model_id)
                 model_item.setTextAlignment(Qt.AlignCenter)
                 self.deployment_reports_table.setItem(row, 1, model_item)
                 
-                # Устройство ID
+                # Идентификатор устройства
                 device_id = str(deployment.device_id) if deployment.device_id else "N/A"
                 device_item = QTableWidgetItem(device_id)
                 device_item.setTextAlignment(Qt.AlignCenter)

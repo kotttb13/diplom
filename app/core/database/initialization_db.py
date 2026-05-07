@@ -14,15 +14,18 @@ db_url_sqlLite='sqlite:///kyrsovaya.db'
 
 
 def create_db_engine(db_url = db_url_postgre):
+    # Создание движка базы.
   
     return create_engine(db_url, echo=True)
 
 def create_tables(engine):
+    # Создание таблиц схемы.
     
     Base.metadata.create_all(engine)
 
 
 def ensure_schema_compatibility(engine):
+    # Проверка совместимости схемы.
     inspector = inspect(engine)
     if not inspector.has_table("device"):
         return
@@ -45,8 +48,16 @@ def ensure_schema_compatibility(engine):
     with engine.begin() as conn:
         for stmt in statements:
             conn.execute(text(stmt))
+        # Удаляем устаревшую колонку схемы.
+        if "cpu_temperature" in existing_columns:
+            try:
+                conn.execute(text("ALTER TABLE device DROP COLUMN cpu_temperature"))
+            except Exception:
+                # Для старых версий удаление может не работать.
+                pass
 
 def ensure_lookup_compatibility(engine):
+    # Обновление справочных значений.
     required_formats = ["onnx", "pb", "h5", "hdf5", "keras", "tflite", "lite", "pt", "pth"]
     required_types = ["general", "cv", "nlp", "audio"]
 
@@ -69,10 +80,12 @@ def ensure_lookup_compatibility(engine):
             )
 
 def get_session(engine):
+    # Получение сессии БД.
     Session = sessionmaker(bind=engine)
     return Session()
 
 def create_database_if_not_exists():
+    # Создание БД при отсутствии.
     
     try:
         conn = psycopg2.connect(
@@ -102,6 +115,7 @@ def create_database_if_not_exists():
 
 
 def initialize_database(type="postgre"):
+    # Полная инициализация базы.
     if type== "postgre":
         create_database_if_not_exists()
     engine = create_db_engine()

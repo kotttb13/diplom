@@ -125,12 +125,12 @@ class TensorFlowOptimizer(BaseOptimizer):
 
                 converter.representative_dataset = representative_dataset
                 converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-                # Full integer IO only for explicit "int8" mode.
+                # Полный режим только явно.
                 if quantization_mode == "int8":
                     converter.inference_input_type = tf.int8
                     converter.inference_output_type = tf.int8
             else:
-                # Without calibration data, static/int8 cannot be applied properly; fall back to dynamic.
+                # Без калибровки режим динамический.
                 strategy["quantization_mode"] = "dynamic"
         
         tflite_model = converter.convert()

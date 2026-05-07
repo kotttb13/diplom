@@ -7,13 +7,28 @@ from core.database.models import Device
 from core.repositories.device_repository import DeviceRepository
 
 class DeviceRegisteringService:
+    # Инициализация сервиса регистрации.
     def __init__(self, device_repository: DeviceRepository):
         self.device_repo = device_repository
         self.logger = logging.getLogger(__name__)
 
-    def add_device(self, ip_address: str, device_type: str,
-                architecture: str, memory_gb: float, ram_gb: float, cpu_core: int, last_seen,
-                device_type_actual: str = None, cpu_frequency: int = None, gpu_memory: int = None )-> Device:
+    # Добавление нового устройства.
+    def add_device(
+        self,
+        ip_address: str,
+        device_type: str,
+        architecture: str,
+        memory_gb: float,
+        ram_gb: float,
+        cpu_core: int,
+        last_seen,
+        device_type_actual: str = None,
+        cpu_frequency: int = None,
+        gpu_memory: int = None,
+        username: str = None,
+        password: str = None,
+        port: int = None,
+    ) -> Device:
         device_type_id = self.device_repo.get_or_create_device_type_id(device_type)
         device = Device(
         
@@ -26,6 +41,9 @@ class DeviceRegisteringService:
             device_type=device_type_actual or device_type,
             cpu_frequency=cpu_frequency,
             gpu_memory=gpu_memory,
+            username=username,
+            password=password,
+            port=port,
             last_seen =  last_seen
             
         )
@@ -35,6 +53,7 @@ class DeviceRegisteringService:
         self.logger.info(f"Устройство добавлено:{ip_address}")
         return device
 
+    # Отметка активного устройства.
     def connect_device(self, device_id: str) -> bool:
         device = self.device_repo.get_by_id(device_id)
         if device:
@@ -44,18 +63,23 @@ class DeviceRegisteringService:
             return True
         return False
         
+    # Получение всех устройств.
     def get_all_devices(self) -> List[Device]:
         return self.device_repo.get_all()
 
+    # Получение активных устройств.
     def get_connected_devices(self) -> List[Device]:
         return self.device_repo.get_connected()
 
+    # Поиск устройства по коду.
     def get_devices_by_id(self, device_id: int) -> List[Device]:
         return self.device_repo.get_by_id(device_id)
 
+    # Поиск устройства по адресу.
     def get_devices_by_ip(self, device_ip: str) -> Device:
         return self.device_repo.get_id_by_ip(device_ip)
     
+    # Получение кода типа.
     def get_device_type_id(self, device_type: str) -> int:
         return self.device_repo.get_device_type_id(device_type)
 

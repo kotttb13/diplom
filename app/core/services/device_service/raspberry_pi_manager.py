@@ -18,7 +18,7 @@ class RaspberryPiManager(LinuxDeviceManager):
             return 4
         cores = len(re.findall(r"^processor\s*:\s*\d+", cpuinfo, flags=re.MULTILINE))
         parsed = cores if cores > 0 else 4
-        # Keep simulated Raspberry profile modest.
+        # Ограничиваем профиль симуляции.
         return min(parsed, 4)
 
     def _parse_memtotal_gb(self, meminfo: str) -> int:
@@ -29,7 +29,7 @@ class RaspberryPiManager(LinuxDeviceManager):
             return 4
         mem_kb = int(match.group(1))
         mem_gb = max(1, int(round(mem_kb / 1024 / 1024)))
-        # Keep realistic Raspberry SKUs.
+        # Оставляем реалистичные профили.
         detected = min([1, 2, 4, 8], key=lambda x: abs(x - mem_gb))
         return min(detected, 4)
 
@@ -58,9 +58,9 @@ class RaspberryPiManager(LinuxDeviceManager):
         meminfo = self._read_snapshot("/proc/meminfo")
         model_text = self._read_snapshot("/proc/device-tree/model") or "Raspberry Pi 4 Model B Rev 1.4"
 
-        # Keep storage realistic for RPi simulation; very large docker host values are misleading.
+        # Ограничиваем хранилище симуляции.
         storage_cmd = self.execute_command("df -BG / | awk 'NR==2{gsub(/G/,\"\",$4); print $4}'")
-        # Smaller default footprint for simulator.
+        # Меньший размер по умолчанию.
         sim_storage = os.getenv("RPI_SIM_STORAGE_GB", "4").strip()
         if storage_cmd.get("success") and str(storage_cmd.get("output", "")).strip().isdigit():
             storage_gb = int(str(storage_cmd.get("output")).strip())

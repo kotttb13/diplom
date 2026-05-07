@@ -13,6 +13,7 @@ import json
 
 class UniversalDeviceService:
 
+    # Инициализация сервиса устройств.
     def __init__(self, device_repository):
 
         self.device_manager = None
@@ -20,6 +21,7 @@ class UniversalDeviceService:
         self.registering = DeviceRegisteringService(device_repository)  
     
     
+    # Выбор менеджера устройства.
     def get_manager(self, device_type: str):
         managers = {
             'android': AndroidDeviceManager,
@@ -33,11 +35,12 @@ class UniversalDeviceService:
 
 
 
+    # Автоопределение типа устройства.
     def _detect_type_auto(self, **connection_params) -> str:
         test_manager = LinuxDeviceManager()
         if not test_manager.connect(**connection_params):
             return "android"
-        # Keep auto-detection responsive; long SSH command timeouts freeze UI.
+        # Держим автоопределение быстрым.
         probe = test_manager.execute_command("cat /proc/device-tree/model", timeout=3)
         if probe.get("success") and "Raspberry Pi" in probe.get("output", ""):
             test_manager.disconnect()
@@ -53,6 +56,7 @@ class UniversalDeviceService:
         test_manager.disconnect()
         return "linux"
 
+    # Подключение к устройству.
     def connect_device(self, device_type: str, **connection_params) -> Dict:
         try:
             if device_type == "auto":
@@ -65,6 +69,13 @@ class UniversalDeviceService:
             success = self.device_manager.connect(**connection_params)
             
             if success:
+                self._current_device_info = {
+                    "device_type": device_type,
+                    "host": (connection_params.get("host") or "").strip(),
+                    "username": (connection_params.get("username") or "").strip(),
+                    "password": (connection_params.get("password") or "").strip(),
+                    "port": connection_params.get("port"),
+                }
                 return {
                     'success': True,
                     'message': f'Успешное подключение к {device_type}',
@@ -77,6 +88,7 @@ class UniversalDeviceService:
              return {'success': False, 'error': e}
 
     
+    # Чтение свободной памяти.
     def get_free_memory(self)->Dict:
         try:
         
@@ -87,6 +99,7 @@ class UniversalDeviceService:
         except Exception as e:
              return {'success': False, 'error': e}
 
+    # Получение сведений устройства.
     def get_device_info(self) -> Dict:
         try:
         
@@ -101,6 +114,7 @@ class UniversalDeviceService:
         except Exception as e:
              return {'success': False, 'error': e}
 
+    # Сохранение сведений устройства.
     def get_and_save_device_info(self) -> Dict:
         try:
         
@@ -109,15 +123,41 @@ class UniversalDeviceService:
             info = self.device_manager.get_device_info()
             print(info)
             if info:
+                last_connection = self._current_device_info or {}
+                connection_username = (last_connection.get("username") or "").strip() or None
+                connection_password = (last_connection.get("password") or "").strip() or None
+                connection_port = last_connection.get("port")
+                if connection_port is not None:
+                    try:
+                        connection_port = int(connection_port)
+                    except (TypeError, ValueError):
+                        connection_port = None
 
-                self.registering.add_device(ip_address=info["ip_address"], device_type=info["type_device"], 
-                architecture=info["architecture"], memory_gb=info["memory_gb"], ram_gb=info["ram_gb"], cpu_core=info["cpu_core"], last_seen=info["last_seen"],
-                device_type_actual=info.get("type_device"),
-                cpu_frequency=info.get("cpu_frequency"), gpu_memory=info.get("gpu_memory"))
+                # Берём адрес из подключения.
+                ip_address = info.get("ip_address") or last_connection.get("host")
+                if not ip_address:
+                    return {'success': False, 'error': 'Не удалось определить IP устройства'}
+
+                self.registering.add_device(
+                    ip_address=ip_address,
+                    device_type=info["type_device"],
+                    architecture=info["architecture"],
+                    memory_gb=info["memory_gb"],
+                    ram_gb=info["ram_gb"],
+                    cpu_core=info["cpu_core"],
+                    last_seen=info["last_seen"],
+                    device_type_actual=info.get("type_device"),
+                    cpu_frequency=info.get("cpu_frequency"),
+                    gpu_memory=info.get("gpu_memory"),
+                    username=connection_username,
+                    password=connection_password,
+                    port=connection_port,
+                )
                 return {'success': True, 'message': info}
         except Exception as e:
              return {'success': False, 'error': e}
 
+    # Сканирование локальной сети.
     def scan_network(self, username: str = None, password: str = None) -> Dict:
         scanner = NetworkScanner(ssh_ports=[22, 2222, 2223, 8022])
         hosts = scanner.scan_open_ssh_hosts()
@@ -132,6 +172,7 @@ class UniversalDeviceService:
         ]
         return {"success": True, "devices": detected}
 
+    # Установка зависимостей устройства.
     def install_dependencies(self, device_type: str) -> Dict:
         if not self.device_manager:
             return {"success": False, "error": "Сначала подключитесь к устройству"}
@@ -145,6 +186,7 @@ class UniversalDeviceService:
         return self.device_manager.execute_command(cmd, timeout=300)
 
 
+    # Развертывание обновления модели.
     def deploy_ota_update(self, 
                          model_path: str,
                          model_id: int,
@@ -159,7 +201,7 @@ class UniversalDeviceService:
         try:
 
             if remote_dir.startswith("~/"):
-                # Получаем домашнюю директорию
+                # Получаем домашний путь.
                 result = self.device_manager.execute_command("echo $HOME")
                 if result.get('success'):
                     home_dir = result.get('output', '').strip()
@@ -179,8 +221,8 @@ class UniversalDeviceService:
                     timeout=5,
                 )
                 is_android_target = android_probe.get("success") and "android" in android_probe.get("output", "")
-            # Raspberry/Linux targets frequently have restricted package/network access.
-            # Avoid hanging on cryptography installation and deploy model directly.
+            # На Линукс и Пи ограничения.
+            # Избегаем зависаний установки.
             if not is_android_target:
                 remote_output = f"{remote_dir}model_{model_id}.{original_ext}"
                 plain_result = self.device_manager.deploy_file(
@@ -253,7 +295,7 @@ class UniversalDeviceService:
                                         'original_size': os.path.getsize(model_path),
                                         'warning': f'Не удалось установить cryptography после auto-fix: {install_result.get("error")}',
                                     }
-                        # Fallback for restricted/offline targets: deploy plain model directly.
+                        # Резерв для офлайн целей.
                         plain_deploy = self.device_manager.deploy_file(
                             local_path=model_path,
                             remote_path=remote_output
@@ -339,6 +381,7 @@ class UniversalDeviceService:
             return {'success': False, 'error': str(e)}
     
 
+    # Шифрование файла обновления.
     def _encrypt_file_aes(self, file_path: str, device_id: str, secret: str):
         key_material = hashlib.pbkdf2_hmac(
             'sha256',
@@ -358,8 +401,9 @@ class UniversalDeviceService:
         
         return encrypted_data, checksum
     
+    # Команда установки криптобиблиотеки.
     def install_cryptography_command(self) -> str:
-        # Determine package manager on target device instead of relying on selected type.
+        # Определяем менеджер пакетов.
         return (
             "python3 -c 'import cryptography' >/dev/null 2>&1 && exit 0; "
             "if command -v pkg >/dev/null 2>&1; then "
@@ -385,6 +429,7 @@ class UniversalDeviceService:
             "fi"
         )
 
+    # Команды восстановления криптобиблиотеки.
     def _android_crypto_repair_commands(self) -> List[str]:
         return [
             "pkg update -y",
@@ -396,6 +441,7 @@ class UniversalDeviceService:
             "python3 -c 'import cffi, cryptography; print(\"crypto-ok\")'",
         ]
 
+    # Выполнение восстановления криптобиблиотеки.
     def _run_android_crypto_repair(self) -> List[Dict]:
         if not self.device_manager:
             return []

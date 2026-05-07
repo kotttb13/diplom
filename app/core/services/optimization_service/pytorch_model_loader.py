@@ -6,17 +6,17 @@ import torch
 
 class PyTorchModelLoader:
     def load_model(self, model_path: str):
-        # 1) TorchScript artifacts (.pt scripted/traced)
+        # Сначала пробуем скриптовый файл.
         try:
             return torch.jit.load(model_path, map_location="cpu")
         except Exception:
             pass
 
-        # 2) Regular torch serialization (PyTorch 2.6+ defaults to weights_only=True)
+        # Затем обычная сериализация.
         try:
             return torch.load(model_path, map_location="cpu", weights_only=False)
         except TypeError:
-            # Older torch versions do not support weights_only argument
+            # Старая версия без параметра.
             return torch.load(model_path, map_location="cpu")
         except Exception as e:
             err = str(e)
@@ -25,7 +25,7 @@ class PyTorchModelLoader:
                     "Файл с расширением .pt/.pth не похож на артефакт PyTorch (torch.load не смог прочитать файл). "
                     "Часто это означает, что файл другого формата (например, ONNX), либо повреждён."
                 ) from e
-            # Common case: pickled class from __main__ cannot be resolved in runtime app.
+            # Часто класс недоступен в рантайме.
             if "Can't get attribute" in err:
                 fallback_candidates = []
                 root = model_path.rsplit(".", 1)[0]

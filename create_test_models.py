@@ -25,7 +25,7 @@ for path in [BASE_DIR, TORCH_DIR, TF_DIR, ONNX_DIR, RAW_DIR]:
 
 print("=== Создание реальных тестовых моделей на CIFAR-10 ===")
 
-# Общие данные CIFAR-10
+# Общие данные набора
 (x_train, y_train), (x_test, y_test) = tf.keras.datasets.cifar10.load_data()
 y_train = y_train.reshape(-1)
 y_test = y_test.reshape(-1)
@@ -51,7 +51,7 @@ def create_tf_model():
     )
 
 
-# TensorFlow артефакты
+# Артефакты первой модели
 print("[1/3] TensorFlow: обучение и экспорт")
 tf_model = create_tf_model()
 tf_model.compile(optimizer="adam", loss="sparse_categorical_crossentropy", metrics=["accuracy"])
@@ -95,7 +95,7 @@ class SmallCifarCNN(nn.Module):
         return self.classifier(self.features(x))
 
 
-# PyTorch артефакты
+# Артефакты второй модели
 print("[2/3] PyTorch: обучение и экспорт")
 transform = transforms.Compose(
     [
@@ -153,7 +153,7 @@ np.save(os.path.join(TORCH_DIR, "test_labels.npy"), y_test_torch)
 np.save(os.path.join(TORCH_DIR, "calibration_data.npy"), x_test_nchw[:256])
 
 
-# ONNX артефакты
+# Артефакты экспортной модели
 print("[3/3] ONNX: экспорт из PyTorch")
 dummy = torch.randn(1, 3, 32, 32)
 torch.onnx.export(
@@ -173,11 +173,11 @@ readme = """# Реальные тестовые модели и данные (CI
 
 Содержимое подготовлено для тестирования оптимизации и квантования.
 
-## Важно для загрузки PyTorch в UI
+## Важно для загрузки в интерфейс
 - Используйте `pytorch_cifar10/cifar10_cnn_full.pt` или `pytorch_cifar10/cifar10_cnn_scripted.pt`.
 - `cifar10_cnn_state_dict.pth` сохранен только как reference-артефакт, не как основной файл для автоконвертации.
 
-## Данные для проверки качества и static quantization
+## Данные для проверки качества
 - `test_data.npy` + `test_labels.npy` — для валидации.
 - `calibration_data.npy` — для калибровки static-квантования.
 

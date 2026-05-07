@@ -44,7 +44,7 @@ class OptimizationService:
                     model.original_path = onnx_path
                     model_details["model_format"] = "onnx"
                 except Exception as e:
-                    # If the file is mislabeled (e.g., ONNX saved with .pt), try to proceed as ONNX.
+                    # Если формат подписан неверно.
                     try:
                         import onnx
                         onnx.load(model.original_path)
@@ -53,7 +53,7 @@ class OptimizationService:
                         raise e
 
             options = optimization_options or {}
-            # Pass flags into optimizer selection/strategy.
+            # Передаём флаги оптимизатору.
             options["apply_quantization"] = bool(apply_quantization)
             target_format = str(options.get("target_format", "auto")).lower()
             source_format = str(model_details.get("model_format", "")).lower() if model_details else ""
@@ -124,7 +124,7 @@ class OptimizationService:
                     try:
                         quantized = quantizer.static_quantization(original_path, calibration_data=test_data)
                     except Exception as e:
-                        # Fallback to dynamic if static quantization fails.
+                        # Резервно пробуем динамический режим.
                         result["quantization_note"] = f"Static-квантование не удалось ({e}); пробуем dynamic."
                         quantized = quantizer.dynamic_quantization(original_path)
                 else:
@@ -198,7 +198,7 @@ class OptimizationService:
             
             return {
                 'optimized_model_id': optimized_model.id
-                # 'optimization_record_id': optimization_record.id
+                # Идентификатор отчета оптимизации.
             }
             
         except Exception as e:

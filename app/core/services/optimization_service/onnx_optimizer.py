@@ -44,7 +44,7 @@ class ONNXOptimizer(BaseOptimizer):
             ort_level = "ORT_ENABLE_ALL"
         elif profile == "size":
             ort_level = "ORT_ENABLE_BASIC"
-        # FP16 conversion is opt-in: it can break/disable some quantized graphs and is not always smaller on disk.
+        # Пониженную точность включаем явно.
         convert_to_fp16 = bool(options.get("fp16", False))
         if options.get("apply_quantization"):
             convert_to_fp16 = False
@@ -81,7 +81,7 @@ class ONNXOptimizer(BaseOptimizer):
                 onnx.save(model_fp16, fp16_path)
                 return fp16_path
             except Exception:
-                # Keep ORT-optimized fp32 graph if fp16 conversion is unavailable.
+                # Оставляем базовый граф при ошибке.
                 return optimized_path
 
         return optimized_path

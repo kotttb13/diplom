@@ -30,8 +30,8 @@ class _NumpyCalibrationDataReader(CalibrationDataReader):
 class ONNXQuantizer:
     def _prepare_for_quantization(self, model_path: str) -> str:
         """
-        Some ONNX models miss type/shape info required by ORT quantizers.
-        Run ONNX shape inference and write a temporary model for quantization.
+        Часть ONNX моделей не содержит нужные типы и формы для квантования.
+        Выполняем вывод форм и пишем временную модель.
         """
         try:
             model = onnx.load(model_path)
@@ -45,8 +45,8 @@ class ONNXQuantizer:
     def dynamic_quantization(self, model_path: str, output_path: Optional[str] = None) -> str:
         output_path = output_path or self._default_output(model_path)
         prepared = self._prepare_for_quantization(model_path)
-        # Dynamic quantization is most reliable for MatMul/Gemm-heavy models (e.g., transformers).
-        # Quantizing Conv dynamically may produce ConvInteger which is often unsupported by CPU EP.
+        # Динамика надёжнее для матриц.
+        # Свертки не всегда поддерживаются.
         try:
             quantize_dynamic(
                 prepared,
@@ -127,7 +127,7 @@ class ONNXQuantizer:
                 sess.run(None, {name: sample})
             return (time.perf_counter() - start) * 1000 / runs
         except Exception:
-            # Metrics should not break the entire optimization pipeline.
+            # Ошибка метрик не критична.
             return -1.0
 
     def _default_output(self, model_path: str) -> str:
