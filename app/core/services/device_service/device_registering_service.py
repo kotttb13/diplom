@@ -7,6 +7,18 @@ from core.database.models import Device
 from core.repositories.device_repository import DeviceRepository
 
 class DeviceRegisteringService:
+    @staticmethod
+    def _normalize_last_seen(value):
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str) and value.strip():
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
+                try:
+                    return datetime.strptime(value.strip(), fmt)
+                except ValueError:
+                    continue
+        return datetime.now()
+
     # Инициализация сервиса регистрации.
     def __init__(self, device_repository: DeviceRepository):
         self.device_repo = device_repository
@@ -44,8 +56,7 @@ class DeviceRegisteringService:
             username=username,
             password=password,
             port=port,
-            last_seen =  last_seen
-            
+            last_seen=self._normalize_last_seen(last_seen),
         )
         
         self.device_repo.save(device)

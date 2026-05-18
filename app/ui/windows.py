@@ -845,6 +845,7 @@ class MainWindow(QMainWindow):
         self.device_type_combo = QComboBox()
         self.device_type_combo.addItems(["android", "linux", "raspberry_pi", "auto"])
         self.device_type_combo.currentTextChanged.connect(self.validate_device_connection_form)
+        self.device_type_combo.currentTextChanged.connect(self._apply_device_type_connection_defaults)
         connect_layout.addRow("Тип устройства:", self.device_type_combo)
         
         connect_group.setLayout(connect_layout)
@@ -1078,10 +1079,72 @@ class MainWindow(QMainWindow):
         button_box.accepted.connect(lambda: self.process_device_add(dialog))
         button_box.rejected.connect(dialog.reject)
         layout.addWidget(button_box)
+
+        self._apply_device_type_connection_defaults(self.device_type_combo.currentText())
+        self.validate_device_connection_form()
         
         dialog.exec_()
 
+    def _default_ssh_port(self, device_type: str) -> int:
+        mapping = {
+            "android": 8022,
+            "linux": 2223,
+            "raspberry_pi": 2222,
+            "auto": 2222,
+        }
+        return mapping.get((device_type or "").strip().lower(), 22)
+
+    def _coerce_connection_port(self, port_text: str, device_type: str) -> int:
+        if port_text and str(port_text).strip().isdigit():
+            return int(str(port_text).strip())
+        return self._default_ssh_port(device_type)
+
+    def _apply_device_type_connection_defaults(self, device_type: str = None):
+        if device_type is None and hasattr(self, "device_type_combo"):
+            device_type = self.device_type_combo.currentText().strip()
+        dtype = (device_type or "").strip().lower()
+        if not hasattr(self, "device_port_input"):
+            return
+
+        known_ports = {"8022", "2222", "2223", "22", ""}
+        current_port = self.device_port_input.text().strip()
+        if current_port in known_ports:
+            self.device_port_input.blockSignals(True)
+            try:
+                self.device_port_input.setText(str(self._default_ssh_port(dtype)))
+            finally:
+                self.device_port_input.blockSignals(False)
+
+        if hasattr(self, "device_username_input"):
+            if dtype == "raspberry_pi" and not self.device_username_input.text().strip():
+                self.device_username_input.setText("pi")
+            elif dtype == "linux" and not self.device_username_input.text().strip():
+                self.device_username_input.setText("root")
+            elif dtype == "android" and not self.device_username_input.text().strip():
+                self.device_username_input.setText("root")
+
+    def _fill_manual_fields_from_info(self, info: dict):
+        if not info or not hasattr(self, "device_arch_input"):
+            return
+
+        def _set_line(widget, value):
+            if value is None:
+                return
+            text = str(value).strip()
+            if text:
+                widget.setText(text)
+
+        _set_line(self.device_arch_input, info.get("architecture"))
+        _set_line(self.device_memory_input, info.get("memory_gb"))
+        _set_line(self.device_ram_input, info.get("ram_gb"))
+        _set_line(self.device_cpu_input, info.get("cpu_core"))
+
     def validate_device_connection_form(self):
+        if not hasattr(self, "device_validation_status") or not hasattr(self, "device_add_button"):
+            return
+        if not hasattr(self, "device_ip_input"):
+            return
+
         ip = self.device_ip_input.text().strip()
         username = self.device_username_input.text().strip()
         password = self.device_password_input.text().strip()
@@ -1122,6 +1185,9 @@ class MainWindow(QMainWindow):
         self.device_add_button.setEnabled(True)
 
     def validate_device_manual_form(self):
+        if not hasattr(self, "device_validation_status") or not hasattr(self, "device_add_button"):
+            return
+
         # Сначала проверяем данные подключения
         self.validate_device_connection_form()
         if not self.device_add_button.isEnabled():
@@ -1191,7 +1257,7 @@ class MainWindow(QMainWindow):
                 'host': ip_address,
                 'username': username,
                 'password': password,
-                'port': int(port) if port.isdigit() else 8022
+                'port': self._coerce_connection_port(port, device_type),
             }
             
             print(f"Конфиг подключения: {config}")
@@ -1226,6 +1292,7 @@ class MainWindow(QMainWindow):
                             if device_info and device_info.get('success'):
                                 # Извлекаем информацию
                                 info = device_info
+                                self._fill_manual_fields_from_info(info)
                                 
                                 # Обновляем только необходимые поля существующего устройства
                                 try:
@@ -1482,6 +1549,9 @@ class MainWindow(QMainWindow):
                     print(f"Результат get_and_save_device_info: {save_result}")
                     
                     if save_result.get('success'):
+                        payload = save_result.get("message") or {}
+                        if isinstance(payload, dict):
+                            self._fill_manual_fields_from_info(payload)
                         self.device_progress_bar.setValue(100)
                         self.device_validation_status.setText("Устройство успешно добавлено")
                         
@@ -1572,7 +1642,7 @@ class MainWindow(QMainWindow):
                         device_type=device_type,
                         username=username,
                         password=password,
-                        port=int(port) if port.isdigit() else 8022
+                        port=self._coerce_connection_port(port, device_type),
                     )
                     
                     self.device_progress_bar.setValue(100)
@@ -3356,10 +3426,14 @@ class MainWindow(QMainWindow):
             self.device_port_input.setText(port)
         if hasattr(self, "device_type_combo") and self.device_type_combo:
             allowed_types = {"android", "linux", "raspberry_pi", "auto"}
-            self.device_type_combo.setCurrentText(dtype if dtype in allowed_types else "auto")
+            normalized = dtype if dtype in allowed_types else "auto"
+            if dtype == "raspberry_pi":
+                normalized = "raspberry_pi"
+            self.device_type_combo.setCurrentText(normalized)
         if username and hasattr(self, "device_username_input") and self.device_username_input:
             self.device_username_input.setText(username)
 
+        self._apply_device_type_connection_defaults(dtype)
         self.validate_device_connection_form()
 
 
@@ -3494,7 +3568,7 @@ class MainWindow(QMainWindow):
 
             username = (getattr(device, "username", "") or "").strip()
             password = (getattr(device, "password", "") or "").strip()
-            port = getattr(device, "port", None) or 8022
+            port = getattr(device, "port", None) or self._default_ssh_port(dtype)
             if not username or not password:
                 progress.close()
                 QMessageBox.warning(

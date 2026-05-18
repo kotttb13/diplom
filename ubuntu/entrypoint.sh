@@ -34,4 +34,3 @@ EOF
 chmod +x /usr/local/bin/devicefs-cat
 
 exec /usr/sbin/sshd -D -e
-

@@ -41,7 +41,7 @@ RUN mkdir -p /data/data/com.termux/files/home && \
       > /usr/local/bin/getprop && chmod +x /usr/local/bin/getprop
 
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
 
 EXPOSE 8022
 

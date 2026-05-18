@@ -5,7 +5,8 @@ services:
       dockerfile: Dockerfile
       args:
         PIP_INDEX_URL: ${PIP_INDEX_URL:-}
-    platform: linux/arm64
+    # amd64: симулятор не требует ARM; на Windows x86 arm64-эмуляция ломает SSH-опрос.
+    platform: linux/amd64
     container_name: ssh_raspberry
     ports:
       - "2222:22"
